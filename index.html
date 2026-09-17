@@ -69,6 +69,7 @@
     gap: 18px;
     align-items: start;
   }
+  .grid > * { min-width: 0; }
 
   .panel {
     background: var(--white);
@@ -108,7 +109,7 @@
     cursor: pointer; padding: 4px 0;
     text-decoration: underline; text-underline-offset: 3px;
   }
-  .reset:focus-visible, input:focus-visible, .adv-toggle:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+  .reset:focus-visible, input:focus-visible, .adv-toggle:focus-visible, .chg-del:focus-visible, .chg-add:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
 
   /* 입력 그룹: 기본 설정 / 고급 설정 */
   .group-title { font-size: 15px; font-weight: 700; color: var(--navy); margin-bottom: 14px; }
@@ -149,13 +150,44 @@
   .adv.is-open .adv-chevron { transform: translateY(2px) rotate(-135deg); }
   .adv-body { padding: 2px 16px 18px; }
   .adv-body[hidden] { display: none; }
-  .adv-empty {
-    font-size: 14px; color: var(--muted);
+  .adv-note { font-size: 13px; color: var(--muted); margin-top: 16px; }
+
+  /* 지출 변화 */
+  .adv-section-title { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+  .adv-section-sub { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+  .chg-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .chg-list:empty { display: none; }
+  .chg-item {
+    border: 1.5px solid var(--line);
+    border-radius: 12px;
     background: var(--paper);
-    border: 1.5px dashed var(--line);
-    border-radius: 10px;
-    padding: 14px;
+    padding: 12px;
   }
+  .chg-item .input-box { background: var(--white); }
+  .chg-top { display: flex; align-items: flex-end; gap: 8px; }
+  .chg-top .chg-field { flex: 1; min-width: 0; }
+  .chg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .chg-row > * { min-width: 0; }
+  .chg-field label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+  .input-box.sm input { font-size: 16px; padding: 9px 10px; }
+  .input-box.sm .unit { padding-right: 10px; font-size: 13px; white-space: nowrap; }
+  .chg-del {
+    flex: none; height: 46px; padding: 0 12px;
+    border: 1.5px solid var(--line); border-radius: 10px;
+    background: var(--white); color: var(--muted);
+    font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .chg-del:hover { color: var(--alert); border-color: #E9B4AA; }
+  .chg-hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .chg-hint.up { color: #8F4506; }
+  .chg-hint.down { color: #17613A; }
+  .chg-add {
+    width: 100%; margin-top: 10px; padding: 11px;
+    border: 1.5px dashed #B9C4DA; border-radius: 12px;
+    background: none; color: var(--navy);
+    font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+  .chg-add:hover { background: var(--navy-soft); border-style: solid; }
 
   /* 결과 */
   .result {
@@ -285,6 +317,9 @@
     .grid { grid-template-columns: 1fr; }
     .panel { padding: 22px 20px; }
   }
+  @media (max-width: 400px) {
+    .chg-row { grid-template-columns: 1fr; }
+  }
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
   }
@@ -364,7 +399,11 @@
             예) <input id="hire-count" type="text" inputmode="numeric" data-advanced>
             체크박스/라디오는 체크 여부로, 나머지는 값이 비어 있지 않은지로 판단해요.
           -->
-          <p class="adv-empty">채용 계획, 투자 유치 시나리오를 여기에 추가할 예정이에요.</p>
+          <h4 class="adv-section-title" id="chg-title">지출 변화</h4>
+          <p class="adv-section-sub">채용처럼 앞으로 월 지출이 바뀌는 일을 넣어요. 마이너스 금액은 비용 절감으로 계산해요.</p>
+          <div class="chg-list" id="chg-list" role="list" aria-labelledby="chg-title"></div>
+          <button class="chg-add" id="chg-add" type="button">+ 추가</button>
+          <p class="adv-note">투자 유치 시나리오도 여기에 추가할 예정이에요.</p>
         </div>
       </div>
 
@@ -385,7 +424,7 @@
   </div>
 </main>
 
-<footer>계산 결과는 매달 지출이 같고 매출은 입력한 성장률대로 변한다고 가정한 추정치예요.</footer>
+<footer>계산 결과는 월 지출이 입력한 지출 변화대로만 바뀌고 매출은 입력한 성장률대로 변한다고 가정한 추정치예요.</footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
@@ -412,6 +451,28 @@
     var n = parseFloat(String(input.value).replace(/[^0-9.\-]/g, ''));
     if (isNaN(n)) return 0;
     return Math.max(-99, Math.min(1000, n));
+  }
+
+  // ===== 지출 변화 =====
+  // 계산할 때마다 입력칸에서 읽어 채움: [{ name, start, amount }]
+  var expenseChanges = [];
+  var lastChangeStart = 0;
+
+  // k개월 뒤(0 = 이번 달)의 월 지출. 시작 달이 지난 변화는 모두 더함
+  function expenseAt(expense, k) {
+    var e = expense;
+    for (var i = 0; i < expenseChanges.length; i++) {
+      if (expenseChanges[i].start <= k) e += expenseChanges[i].amount;
+    }
+    return Math.max(0, e);
+  }
+
+  // 마이너스 허용 숫자 읽기
+  function readSigned(input) {
+    var raw = String(input.value);
+    var n = parseInt(raw.replace(/[^0-9]/g, ''), 10);
+    if (isNaN(n)) return 0;
+    return /^\s*-/.test(raw) ? -n : n;
   }
 
   // 1,234 형태
@@ -487,16 +548,17 @@
     var minBalance = cash;
     var breakEven = null;
     for (var m = 1; m <= MAX_SIM_MONTHS; m++) {
-      var burnM = expense - rev;
+      var burnM = expenseAt(expense, m - 1) - rev;
       if (burnM <= 0 && breakEven === null) breakEven = m;
+      if (burnM > 0) breakEven = null; // 다시 적자가 되면 흑자 전환 시점을 다시 찾음
       if (burnM > 0 && balance - burnM <= 0) {
         // 이 달 안에 현금이 바닥남: 소수점 개월까지 계산
         return { runway: (m - 1) + Math.max(0, balance) / burnM, minBalance: 0, breakEven: null };
       }
       balance -= burnM;
       if (balance < minBalance) minBalance = balance;
-      // 성장률이 0 이상이고 이미 흑자면 이후로도 현금이 줄지 않음
-      if (burnM <= 0 && g >= 0) break;
+      // 성장률이 0 이상이고, 남은 지출 변화가 없고, 이미 흑자면 이후로도 현금이 줄지 않음
+      if (burnM <= 0 && g >= 0 && m - 1 >= lastChangeStart) break;
       rev = rev * (1 + g / 100);
     }
     return { runway: null, minBalance: minBalance, breakEven: breakEven };
@@ -506,10 +568,22 @@
   function balanceAfter(months, cash, expense, revenue, g) {
     var balance = cash, rev = revenue;
     for (var m = 0; m < months; m++) {
-      balance -= expense - rev;
+      balance -= expenseAt(expense, m) - rev;
       rev = rev * (1 + g / 100);
     }
     return balance;
+  }
+
+  // 앞으로 한 번도 적자가 되지 않는지 (매출이 줄지 않을 때만)
+  // 지출은 변화 시작 달에만 바뀌므로 마지막 변화 시작 달까지만 보면 됨
+  function neverBurns(expense, revenue, g) {
+    if (g < 0) return false;
+    var rev = revenue;
+    for (var k = 0; k <= lastChangeStart; k++) {
+      if (expenseAt(expense, k) - rev > 0) return false;
+      rev = rev * (1 + g / 100);
+    }
+    return true;
   }
 
   // 경고 단계: 6개월 미만 빨강, 12개월 미만 주황, 그 이상 초록
@@ -572,6 +646,15 @@
     return (Math.round(g * 100) / 100) + '%';
   }
 
+  // 결과 카드의 가정 문구
+  function assumptionText(g, hasChanges) {
+    var rate = '';
+    if (g > 0) rate = '매출이 매달 ' + rateText(g) + '씩 늘어난다고';
+    else if (g < 0) rate = '매출이 매달 ' + rateText(-g) + '씩 줄어든다고';
+    if (!hasChanges) return rate ? rate + ' 보면' : '지금 속도로 현금을 쓰면';
+    return rate ? '지출 변화를 반영하고 ' + rate + ' 보면' : '지출 변화를 반영하면';
+  }
+
   // ===== 월별 잔고 그래프 =====
   var CHART_MONTHS = 36;
   var chart = null;
@@ -582,18 +665,21 @@
     var balance = cash, rev = revenue;
     var breakEven = null;
     var runOut = null; // 현금이 바닥나는 달 (결과 카드와 같은 기준)
-    var wasBurning = expense - revenue > 0;
+    var prevBurning = null;
     for (var k = 0; k <= CHART_MONTHS; k++) {
       labels.push(monthText(k));
       values.push(Math.round(balance));
-      // 적자였다가 성장으로 매출이 지출 이상이 된 첫 달
-      if (breakEven === null && wasBurning && g > 0 && balance > 0 && expense - rev <= 0) breakEven = k;
-      if (balance <= 0 && (k > 0 || expense - rev > 0)) {
+      var burnK = expenseAt(expense, k) - rev;
+      // 적자였다가 매출 성장이나 비용 절감으로 매출이 지출 이상이 된 달
+      if (prevBurning === true && burnK <= 0 && balance > 0) breakEven = k;
+      if (burnK > 0 && breakEven !== null) breakEven = null; // 다시 적자면 표시하지 않음
+      prevBurning = burnK > 0;
+      if (balance <= 0 && (k > 0 || burnK > 0)) {
         // 월초 잔고가 딱 0이면 그 달, 0 아래면 바로 전 달 중에 바닥난 것
         runOut = (k === 0 || balance === 0) ? k : k - 1;
         break;
       }
-      balance -= expense - rev;
+      balance -= burnK;
       rev = rev * (1 + g / 100);
     }
     return { labels: labels, values: values, breakEven: breakEven, runOut: runOut };
@@ -602,11 +688,77 @@
   var BREAK_EVEN_COLOR = '#1B7440';
   var chartBreakEven = null; // 그래프에서 흑자 전환 달의 위치
 
+  var CHANGE_COLOR = '#B8860B';
+  var CHANGE_TEXT = '#6B4A00';
+  var chartChanges = []; // 그래프에 표시할 지출 변화: [{ index, names, lines }]
+
+  function changeAt(index) {
+    for (var i = 0; i < chartChanges.length; i++) if (chartChanges[i].index === index) return chartChanges[i];
+    return null;
+  }
+
   function pointColor(c) {
     if (c.dataIndex === chartBreakEven) return BREAK_EVEN_COLOR;
+    if (changeAt(c.dataIndex)) return CHANGE_COLOR;
     return c.raw <= 0 ? '#C8412E' : '#1D418C';
   }
-  function pointSize(c) { return c.dataIndex === chartBreakEven ? 6 : 2.5; }
+  function pointSize(c) {
+    if (c.dataIndex === chartBreakEven) return 6;
+    return changeAt(c.dataIndex) ? 5 : 2.5;
+  }
+
+  function shorten(text, max) {
+    return text.length > max ? text.slice(0, max - 1) + '…' : text;
+  }
+
+  // 지출 변화가 시작되는 달에 노란 점선과 이름표를 그리는 플러그인
+  // 이름표는 그래프 아래쪽에 두고, 겹치면 한 줄씩 위로 쌓음
+  var changeMarkerPlugin = {
+    id: 'changeMarkers',
+    afterDatasetsDraw: function (ch) {
+      if (!chartChanges.length) return;
+      var meta = ch.getDatasetMeta(0);
+      var ctx = ch.ctx, area = ch.chartArea;
+      var h = 20, gap = 4, maxRows = 3;
+      var rowRight = [];
+      ctx.save();
+      ctx.font = '700 12px Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+      chartChanges.forEach(function (cg) {
+        var pt = meta.data[cg.index];
+        if (!pt) return;
+
+        ctx.strokeStyle = CHANGE_COLOR;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 4]);
+        ctx.beginPath();
+        ctx.moveTo(pt.x, area.top);
+        ctx.lineTo(pt.x, area.bottom);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        var text = shorten(cg.names.join(', '), 14);
+        var w = ctx.measureText(text).width + 14;
+        var x = Math.max(area.left, Math.min(area.right - w, pt.x - w / 2));
+        var row = 0;
+        while (row < maxRows && rowRight[row] !== undefined && x < rowRight[row] + gap) row++;
+        if (row >= maxRows) row = maxRows - 1;
+        rowRight[row] = x + w;
+        var y = area.bottom - 6 - h - row * (h + gap);
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.strokeStyle = CHANGE_COLOR;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(x, y, w, h, 6); else ctx.rect(x, y, w, h);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = CHANGE_TEXT;
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, x + 7, y + h / 2 + 1);
+      });
+      ctx.restore();
+    }
+  };
 
   // 흑자 전환 달에 초록 점선과 라벨을 그리는 작은 플러그인
   var breakEvenPlugin = {
@@ -665,6 +817,20 @@
       noteEl.textContent += ' 초록 점선은 흑자 전환 예상 달(' + data.labels[chartBreakEven] + ')이에요.';
     }
 
+    // 그려진 기간 안에서 시작하는 지출 변화를 달별로 묶음
+    chartChanges = [];
+    expenseChanges.forEach(function (c) {
+      if (c.start > months) return;
+      var cg = changeAt(c.start);
+      if (!cg) { cg = { index: c.start, names: [], lines: [] }; chartChanges.push(cg); }
+      cg.names.push(c.name);
+      cg.lines.push(c.name + ' ' + (c.amount > 0 ? '+' : '-') + comma(Math.abs(c.amount)) + '만원');
+    });
+    chartChanges.sort(function (a, b) { return a.index - b.index; });
+    if (chartChanges.length) {
+      noteEl.textContent += ' 노란 점선은 지출 변화가 시작되는 달이에요.';
+    }
+
     if (chart) {
       chart.data.labels = data.labels;
       chart.data.datasets[0].data = data.values;
@@ -690,7 +856,7 @@
           pointBorderColor: pointColor
         }]
       },
-      plugins: [breakEvenPlugin],
+      plugins: [changeMarkerPlugin, breakEvenPlugin],
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -705,7 +871,13 @@
             displayColors: false,
             callbacks: {
               label: function (c) { return '잔고 ' + comma(c.raw) + '만원 (' + won(c.raw) + ')'; },
-              afterLabel: function (c) { return c.dataIndex === chartBreakEven ? '흑자 전환 예상 달' : ''; }
+              afterLabel: function (c) {
+                var lines = [];
+                if (c.dataIndex === chartBreakEven) lines.push('흑자 전환 예상 달');
+                var cg = changeAt(c.dataIndex);
+                if (cg) cg.lines.forEach(function (l) { lines.push('지출 변화: ' + l); });
+                return lines;
+              }
             }
           }
         },
@@ -734,15 +906,18 @@
     var expense = readNumber(els.expense);
     var revenue = readNumber(els.revenue);
     var g = readRate(els.growth);
-    var burn = expense - revenue;
+    expenseChanges = readChanges();
+    lastChangeStart = expenseChanges.reduce(function (mx, c) { return Math.max(mx, c.start); }, 0);
+    var hasChanges = expenseChanges.length > 0;
+    var burn = expenseAt(expense, 0) - revenue;
     updateHints(cash, expense, revenue, g);
     updateChart(cash, expense, revenue, g);
 
-    var burnLabel = g === 0 ? '월 순소진액' : '이번 달 순소진액';
+    var burnLabel = (g === 0 && !hasChanges) ? '월 순소진액' : '이번 달 순소진액';
     var html = '<h2>계산 결과</h2>';
 
-    // 1) 현금이 줄지 않는 경우 (지금 흑자이고 매출이 줄지 않음)
-    if (burn <= 0 && g >= 0) {
+    // 1) 현금이 줄지 않는 경우 (앞으로 한 번도 적자가 되지 않음)
+    if (neverBurns(expense, revenue, g)) {
       var profit = -burn;
       var after12 = balanceAfter(12, cash, expense, revenue, g);
       html += '<p class="sub">매출이 지출보다 크거나 같아요.</p>';
@@ -753,7 +928,9 @@
         '<div class="stat"><div class="k">이번 달 남는 돈</div><div class="v">' + won(profit) + '</div></div>' +
         '</div>';
       var safeNote;
-      if (profit > 0 || g > 0) {
+      if (hasChanges && g === 0 && Math.round(after12) !== cash) {
+        safeNote = '지출 변화를 반영하면 1년 뒤엔 약 ' + won(after12) + '이 돼요.';
+      } else if (profit > 0 || g > 0) {
         safeNote = (g > 0
           ? '매출이 매달 ' + rateText(g) + '씩 늘어나면 '
           : '매달 ' + won(profit) + '씩 현금이 늘어나요. ') +
@@ -782,7 +959,7 @@
 
     // 3) 런웨이 계산
     var runway, sim = null;
-    if (g === 0) {
+    if (g === 0 && !hasChanges) {
       runway = cash / burn; // 기존과 똑같은 계산
     } else {
       sim = simulate(cash, expense, revenue, g);
@@ -790,8 +967,19 @@
     }
 
     // 3-a) 성장 덕분에 현금이 바닥나기 전에 흑자 전환
+    if (runway === null && sim.breakEven === null) {
+      // 50년 동안 계산해도 현금이 남는 경우
+      html += '<p class="sub">' + assumptionText(g, hasChanges) + '</p>';
+      html += '<div class="safe-big">50년 넘게 버틸 수 있어요</div>';
+      html += '<div class="stats one">' +
+        '<div class="stat"><div class="k">' + burnLabel + '</div><div class="v">' + won(Math.max(burn, 0)) + '</div></div>' +
+        '</div>';
+      html += statusBox('green', '여유가 있어요.', '현금이 가장 적을 때도 약 ' + won(sim.minBalance) + '이 남아요.');
+      els.result.innerHTML = html;
+      return;
+    }
     if (runway === null) {
-      html += '<p class="sub">매출이 매달 ' + rateText(g) + '씩 늘어난다고 보면</p>';
+      html += '<p class="sub">' + assumptionText(g, hasChanges) + '</p>';
       html += '<div class="safe-big">현금이 바닥나지 않아요</div>';
       html += '<p class="zero-date"><strong>' + monthText(sim.breakEven - 1) + '</strong>쯤 매출이 지출을 넘어서요.</p>';
       html += '<div class="stats">' +
@@ -800,7 +988,9 @@
         '</div>';
       html += statusBox('green', monthText(sim.breakEven - 1) + ' 흑자 전환 예상이에요.',
         '그 전까지 현금이 가장 적을 때도 약 ' + won(sim.minBalance) +
-        '이 남아요. 성장률이 예상보다 낮으면 결과가 달라지니 0%일 때도 함께 확인해 보세요.');
+        '이 남아요. ' + (g !== 0
+          ? '성장률이 예상보다 낮으면 결과가 달라지니 0%일 때도 함께 확인해 보세요.'
+          : '지출 변화 일정이 달라지면 결과도 달라지니 함께 확인해 보세요.'));
       els.result.innerHTML = html;
       return;
     }
@@ -809,10 +999,7 @@
     var shown = runway >= 100 ? comma(runway) : (Math.floor(runway * 10) / 10).toFixed(1).replace(/\.0$/, '');
     var endText = monthText(Math.floor(runway));
 
-    var subText;
-    if (g === 0) subText = '지금 속도로 현금을 쓰면';
-    else if (g > 0) subText = '매출이 매달 ' + rateText(g) + '씩 늘어난다고 보면';
-    else subText = '매출이 매달 ' + rateText(-g) + '씩 줄어든다고 보면';
+    var subText = assumptionText(g, hasChanges);
 
     html += '<p class="sub">' + subText + '</p>';
     html += '<div class="runway lv-' + levelOf(runway) + '"><span class="num">' + shown + '</span><span class="label">개월</span></div>';
@@ -844,7 +1031,12 @@
   function advancedInputs() {
     return Array.prototype.slice.call(adv.body.querySelectorAll('[data-advanced]'));
   }
+  var changeList = document.getElementById('chg-list');
+  var changeAddBtn = document.getElementById('chg-add');
+
+  // 지출 변화 항목이 하나라도 있거나, data-advanced 입력칸에 값이 있으면 적용 중
   function isAdvancedActive() {
+    if (changeList.children.length > 0) return true;
     return advancedInputs().some(function (el) {
       if (el.type === 'checkbox' || el.type === 'radio') return el.checked;
       return String(el.value).trim() !== '';
@@ -854,6 +1046,7 @@
     adv.badge.hidden = !isAdvancedActive();
   }
   function clearAdvanced() {
+    changeList.innerHTML = '';
     advancedInputs().forEach(function (el) {
       if (el.type === 'checkbox' || el.type === 'radio') el.checked = el.defaultChecked;
       else el.value = '';
@@ -867,6 +1060,128 @@
   // 나중에 추가될 입력칸도 자동으로 감지 (이벤트 위임)
   adv.body.addEventListener('input', updateAdvancedBadge);
   adv.body.addEventListener('change', updateAdvancedBadge);
+
+  // ----- 지출 변화 항목 -----
+  var changeSeq = 0;
+  var MAX_CHANGE_DIGITS = 9;
+
+  // 입력칸에서 지출 변화 목록 읽기 (금액이 0인 항목은 계산에서 뺌)
+  function readChanges() {
+    var out = [];
+    Array.prototype.forEach.call(changeList.children, function (item) {
+      var amount = readSigned(item.querySelector('.chg-amount'));
+      if (amount === 0) return;
+      var name = item.querySelector('.chg-name').value.trim() || '이름 없는 항목';
+      var start = Math.min(readNumber(item.querySelector('.chg-start')), MAX_SIM_MONTHS);
+      out.push({ name: name, start: start, amount: amount });
+    });
+    return out;
+  }
+
+  // 금액칸: 콤마 자동 표시 + 맨 앞 마이너스 허용 (커서 위치 유지)
+  function formatSignedInput(input) {
+    var raw = input.value;
+    var pos = input.selectionStart || raw.length;
+    var neg = raw.replace(/[^0-9\-]/g, '').charAt(0) === '-';
+    var digitsBefore = raw.slice(0, pos).replace(/[^0-9]/g, '').length;
+    var digits = raw.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '');
+    if (digits.length > MAX_CHANGE_DIGITS) digits = digits.slice(0, MAX_CHANGE_DIGITS);
+    var formatted = (neg ? '-' : '') + (digits ? Number(digits).toLocaleString('ko-KR') : '');
+    input.value = formatted;
+    var count = 0, newPos = neg ? 1 : 0;
+    while (newPos < formatted.length && count < digitsBefore) {
+      if (/\d/.test(formatted[newPos])) count++;
+      newPos++;
+    }
+    try { input.setSelectionRange(newPos, newPos); } catch (e) {}
+  }
+
+  function updateChangeHint(item) {
+    var hint = item.querySelector('.chg-hint');
+    var amount = readSigned(item.querySelector('.chg-amount'));
+    var start = Math.min(readNumber(item.querySelector('.chg-start')), MAX_SIM_MONTHS);
+    hint.classList.remove('up', 'down');
+    if (amount === 0) {
+      hint.textContent = '월 금액을 넣으면 계산에 반영돼요.';
+      return;
+    }
+    hint.classList.add(amount > 0 ? 'up' : 'down');
+    hint.textContent = monthText(start) + '부터 매달 ' + won(Math.abs(amount)) +
+      (amount > 0 ? '씩 지출이 늘어나요.' : '씩 비용이 줄어요.');
+  }
+
+  function addChange() {
+    var id = 'chg-' + (++changeSeq);
+    var item = document.createElement('div');
+    item.className = 'chg-item';
+    item.setAttribute('role', 'listitem');
+    item.innerHTML =
+      '<div class="chg-top">' +
+        '<div class="chg-field">' +
+          '<label for="' + id + '-name">이름</label>' +
+          '<div class="input-box sm"><input id="' + id + '-name" class="chg-name" type="text" autocomplete="off" maxlength="30" placeholder="예: 개발자 채용"></div>' +
+        '</div>' +
+        '<button class="chg-del" type="button">삭제</button>' +
+      '</div>' +
+      '<div class="chg-row">' +
+        '<div class="chg-field">' +
+          '<label for="' + id + '-start">몇 개월 후부터</label>' +
+          '<div class="input-box sm"><input id="' + id + '-start" class="chg-start" type="text" inputmode="numeric" autocomplete="off" placeholder="0"><span class="unit">개월</span></div>' +
+        '</div>' +
+        '<div class="chg-field">' +
+          '<label for="' + id + '-amount">월 금액</label>' +
+          '<div class="input-box sm"><input id="' + id + '-amount" class="chg-amount" type="text" inputmode="text" autocomplete="off" placeholder="예: 500" aria-describedby="' + id + '-hint"><span class="unit">만원</span></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="chg-hint" id="' + id + '-hint"></div>';
+    changeList.appendChild(item);
+    updateChangeName(item);
+    updateChangeHint(item);
+    updateAdvancedBadge();
+    calc();
+    item.querySelector('.chg-name').focus();
+  }
+
+  // 삭제 버튼이 어떤 항목을 지우는지 스크린리더에 알려줌
+  function updateChangeName(item) {
+    var name = item.querySelector('.chg-name').value.trim();
+    item.querySelector('.chg-del').setAttribute('aria-label', (name || '이 지출 변화') + ' 항목 삭제');
+  }
+
+  function removeChange(item) {
+    var next = item.nextElementSibling || item.previousElementSibling;
+    item.remove();
+    updateAdvancedBadge();
+    calc();
+    if (next) next.querySelector('.chg-del').focus();
+    else changeAddBtn.focus();
+  }
+
+  changeAddBtn.addEventListener('click', addChange);
+
+  changeList.addEventListener('input', function (e) {
+    var t = e.target;
+    var item = t.closest('.chg-item');
+    if (!item) return;
+    if (t.classList.contains('chg-amount')) formatSignedInput(t);
+    if (t.classList.contains('chg-start')) {
+      var d = t.value.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '').slice(0, 3);
+      if (d !== t.value) t.value = d;
+    }
+    if (t.classList.contains('chg-name')) updateChangeName(item);
+    updateChangeHint(item);
+    calc();
+  });
+
+  changeList.addEventListener('click', function (e) {
+    var btn = e.target.closest('.chg-del');
+    if (btn) removeChange(btn.closest('.chg-item'));
+  });
+
+  changeList.addEventListener('focusin', function (e) {
+    var t = e.target;
+    if (t.classList.contains('chg-start') || t.classList.contains('chg-amount')) t.select();
+  });
 
   setAdvancedOpen(false);
   updateAdvancedBadge();
