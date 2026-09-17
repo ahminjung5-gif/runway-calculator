@@ -364,13 +364,11 @@
   /* 잔고 그래프 */
   .chart-panel { margin-top: 18px; }
   .chart-box { position: relative; height: calc(340px + var(--strip-h, 0px)); }
-  .chart-note { font-size: 15px; font-weight: 600; color: var(--ink); margin-top: 12px; min-height: 1em; }
-  .chart-key { font-size: 12px; color: var(--muted); margin-top: 14px; }
-  .chart-key:empty { display: none; }
+  .chart-note { font-size: 15px; font-weight: 600; color: var(--ink); margin: 4px 0 16px; min-height: 1.55em; }
   .chart-legend {
     list-style: none;
     display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px;
-    margin-top: 6px;
+    margin-top: 14px;
     font-size: 14px; color: var(--ink);
     font-variant-numeric: tabular-nums;
   }
@@ -511,10 +509,8 @@
   <div class="wrap">
     <section class="panel chart-panel" aria-labelledby="chart-title">
       <h2 id="chart-title">월별 현금 잔고</h2>
-      <p class="sub">매달 초에 남아 있는 현금을 최대 36개월까지 보여줘요.</p>
-      <div class="chart-box"><canvas id="balance-chart" role="img" aria-label="월별 현금 잔고 선 그래프"></canvas><div class="chart-tip" id="chart-tip" role="tooltip" hidden></div></div>
       <p class="chart-note" id="chart-note"></p>
-      <p class="chart-key" id="chart-key"></p>
+      <div class="chart-box"><canvas id="balance-chart" role="img" aria-label="월별 현금 잔고 선 그래프"></canvas><div class="chart-tip" id="chart-tip" role="tooltip" hidden></div></div>
       <ol class="chart-legend" id="chart-legend" aria-label="그래프 번호 설명"></ol>
     </section>
   </div>
@@ -885,58 +881,49 @@
     accentFill: cssVar('--accent-fill'),
     neg: cssVar('--neg'), pos: cssVar('--pos')
   };
-  var chartBreakEven = null; // 그래프에서 흑자 전환 달의 위치
-  var chartMonths = 0;       // 그래프에 그려진 마지막 달 위치
+  var chartMonths = 0; // 그래프에 그려진 마지막 달 위치
 
-  // 그래프 표시 항목 (번호 순서대로): [{ n, kind, shape, index, from, to, text, row }]
+  // 그래프 표시 항목 (번호 = 달 순서): [{ n, kind, shape, month, at, from, to, text, row }]
   // kind: 'up' 지출 증가(빨강) / 'down' 비용 절감(초록) / 'invest' 투자(초록) / 'breakeven' 흑자 전환(초록)
-  // shape: 'point' 그래프 위쪽 번호 / 'bar' 위쪽 가로 막대 (기간 한정 지출)
+  // shape: 'bar' 위쪽 가로 막대 (기간 한정 지출) / 'point' 잔고 선 위 동그라미 마커
+  // month: 입력한 달(범례·입력 문장과 같은 달), at: 마커를 찍는 그래프 점 위치
   var chartItems = [];
-  var chartStrip = { barRows: 0, markRows: 0 }; // 위쪽 막대 줄 수, 번호 줄 수
-  var chartHits = [];  // 번호·막대 위치 (마우스/탭 판정용)
+  var chartGroups = [];   // 같은 점의 마커를 합친 것: [{ at, items }]
+  var chartBarRows = 0;   // 위쪽 막대 줄 수
+  var chartHits = [];     // 막대 위치 (마우스/탭 판정용)
 
-  var MARK_R = 9;       // 지점 번호 동그라미 반지름
-  var BAR_R = 8;        // 막대 끝 번호 동그라미 반지름
-  var MARK_ROW_H = 24;  // 번호 한 줄 높이
-  var BAR_ROW_H = 20;   // 막대 한 줄 높이
+  var FONT_STACK = 'Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+  var MARK_FONT = '700 11px ' + FONT_STACK;
+  var BAR_FONT = '700 10px ' + FONT_STACK;
+  var MARK_R = 9;       // 선 위 마커 반지름
+  var RUNOUT_R = 5;     // 현금 소진 마커 반지름
+  var BAR_R = 7;        // 막대 시작점 번호 반지름
+  var BAR_ROW_H = 16;   // 막대 한 줄 높이
   var BAR_THICK = 4;    // 막대 두께
-  var STRIP_GAP = 8;    // 번호 줄과 그래프 사이 간격
-  var AXIS_LEFT = 75;   // 줄 나누기용 어림값: 세로축 글자 폭
-  var PAD_RIGHT = 16;   // 막대 끝 번호가 잘리지 않게 오른쪽 여백
-  var NUM_FONT = '700 11px Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+  var BAR_GAP = 4;      // 막대 줄과 그래프 영역 사이 간격
+  var AXIS_LEFT = 50;   // 줄 나누기용 어림값: 세로축 숫자 폭
+  var PAD_RIGHT = 12;
 
   function kindColor(kind) { return kind === 'up' ? C.neg : C.pos; }
   function circled(n) { return n <= 20 ? String.fromCharCode(0x245F + n) : '(' + n + ')'; }
   function signedWon(amount) { return (amount > 0 ? '+' : '-') + won(Math.abs(amount)); }
 
-  // 받침 유무에 맞는 조사 고르기 (예: 증가예요 / 전환이에요)
-  function hasBatchim(word) {
-    var code = word.charCodeAt(word.length - 1) - 0xAC00;
-    return code >= 0 && code <= 11171 && code % 28 !== 0;
+  // 세로축 숫자: 3억, 2.5억, 5,000만
+  function axisMoney(v) {
+    if (v === 0) return '0';
+    var a = Math.abs(v);
+    var text = a >= 10000 ? (Math.round(a / 100) / 100) + '억' : comma(a) + '만';
+    return (v < 0 ? '-' : '') + text;
   }
 
-  function pointItemsAt(index) {
-    return chartItems.filter(function (it) { return it.shape === 'point' && it.index === index; });
-  }
-  function barItemsAt(index) {
-    return chartItems.filter(function (it) { return it.shape === 'bar' && index >= it.from && index < it.to; });
-  }
-
-  function pointColor(c) {
-    var kinds = pointItemsAt(c.dataIndex).map(function (it) { return it.kind; });
-    if (kinds.length) {
-      if (kinds.indexOf('breakeven') >= 0 || kinds.indexOf('invest') >= 0) return C.pos;
-      return kinds.indexOf('up') >= 0 ? C.neg : C.pos;
-    }
-    return c.raw <= 0 ? C.neg : C.navy;
-  }
-  function pointSize(c) {
-    var items = pointItemsAt(c.dataIndex);
-    if (!items.length) return 2.5;
-    return items.some(function (it) { return it.kind === 'breakeven'; }) ? 6 : 5;
+  // 투자·일회성 지출은 금액이 반영된 뒤의 점(다음 달 월초 잔고)에 마커를 찍음.
+  // 다음 점이 없거나 0원 아래로 잘린 점이면 그 달의 점에 찍음
+  function afterPoint(month, data) {
+    var last = data.values.length - 1;
+    return month + 1 <= last && data.values[month + 1] >= 0 ? month + 1 : month;
   }
 
-  // 그려진 기간 안의 지출 변화, 투자, 흑자 전환을 번호 순서(달 순서)로 모음
+  // 그려진 기간 안의 지출 변화, 투자, 흑자 전환을 번호 순서(입력한 달 순서)로 모음
   function buildChartItems(data, runOutMonth) {
     var months = data.values.length - 1;
     var list = [], seq = 0;
@@ -944,124 +931,154 @@
       // 그려진 기간 밖이거나, 현금이 바닥난 뒤에 시작하는 지출 변화는 표시하지 않음 (투자와 같은 기준)
       if (c.start > months || (runOutMonth !== null && c.start > runOutMonth)) return;
       var kind = c.amount > 0 ? 'up' : 'down';
+      var item = { kind: kind, month: c.start, order: 0, seq: seq++ };
       if (c.type === 'limited') {
         var period = c.duration === 1
           ? monthText(c.start)
           : monthText(c.start) + '~' + monthText(c.start + c.duration - 1);
-        list.push({ kind: kind, shape: 'bar', index: c.start, from: c.start, to: c.start + c.duration,
-          text: c.name + ' · ' + period + ' · 월 ' + signedWon(c.amount), order: 0, seq: seq++ });
-        return;
+        item.shape = 'bar';
+        item.from = c.start;
+        item.to = c.start + c.duration;
+        item.text = c.name + ' · 기간 지출 · ' + period + ' · 월 ' + signedWon(c.amount);
+      } else if (c.type === 'once') {
+        item.shape = 'point';
+        item.at = afterPoint(c.start, data); // 금액이 빠져나간 뒤의 점
+        item.text = c.name + ' · 일회성 지출 · ' + monthText(c.start) + ' · ' + signedWon(c.amount);
+      } else {
+        item.shape = 'point';
+        item.at = c.start; // 매달 반복: 잔고 선의 기울기가 바뀌기 시작하는 점
+        item.text = c.name + ' · 반복 지출 · ' + monthText(c.start) + '부터 · 월 ' + signedWon(c.amount);
       }
-      list.push({ kind: kind, shape: 'point', index: c.start, order: 0, seq: seq++,
-        text: c.type === 'once'
-          ? c.name + ' · ' + monthText(c.start) + ' · ' + signedWon(c.amount)
-          : c.name + ' · ' + monthText(c.start) + '부터 · 월 ' + signedWon(c.amount) });
+      list.push(item);
     });
     investments.forEach(function (v) {
       if (v.month > months || (runOutMonth !== null && v.month > runOutMonth)) return;
-      list.push({ kind: 'invest', shape: 'point', index: v.month, order: 1, seq: seq++,
-        text: v.name + ' · ' + monthText(v.month) + ' · ' + signedWon(v.amount) });
+      list.push({ kind: 'invest', shape: 'point', month: v.month, at: afterPoint(v.month, data), order: 1, seq: seq++,
+        text: v.name + ' · 투자 · ' + monthText(v.month) + ' · ' + signedWon(v.amount) });
     });
     if (data.breakEven !== null) {
-      list.push({ kind: 'breakeven', shape: 'point', index: data.breakEven, order: 2, seq: seq++,
+      // 흑자 전환: 잔고가 줄다가 멈추는(꺾이는) 점
+      list.push({ kind: 'breakeven', shape: 'point', month: data.breakEven, at: data.breakEven, order: 2, seq: seq++,
         text: '흑자 전환 · ' + data.labels[data.breakEven] });
     }
-    list.sort(function (a, b) { return a.index - b.index || a.order - b.order || a.seq - b.seq; });
+    list.sort(function (a, b) { return a.month - b.month || a.order - b.order || a.seq - b.seq; });
     list.forEach(function (it, i) { it.n = i + 1; });
     return list;
   }
 
-  // 막대와 번호가 겹치면 다음 줄로 내림. 그래프 폭으로 각 달의 가로 위치를 어림해서 줄을 정하고,
-  // 필요한 줄 수만큼 그래프 위쪽 여백을 늘림
-  function applyChartLayout(options, width, months) {
-    var right = width - PAD_RIGHT;
-    var step = (right - AXIS_LEFT) / Math.max(1, months);
-    function xAt(i) { return AXIS_LEFT + Math.min(i, months) * step; }
-    var barEnds = [], markEnds = [];
+  // 같은 점에 찍히는 마커를 하나로 합침
+  function buildGroups() {
+    var map = {}, groups = [];
     chartItems.forEach(function (it) {
-      var rows, x1, x2;
-      if (it.shape === 'bar') {
-        rows = barEnds;
-        x1 = xAt(it.from) - 2;
-        x2 = xAt(it.to) + 4 + BAR_R * 2;
-      } else {
-        rows = markEnds;
-        x1 = xAt(it.index) - MARK_R - 3;
-        x2 = xAt(it.index) + MARK_R + 3;
-      }
-      var r = 0;
-      while (rows[r] !== undefined && x1 < rows[r]) r++;
-      rows[r] = x2;
-      it.row = r;
+      if (it.shape !== 'point') return;
+      if (!map[it.at]) { map[it.at] = { at: it.at, items: [] }; groups.push(map[it.at]); }
+      map[it.at].items.push(it);
     });
-    chartStrip = { barRows: barEnds.length, markRows: markEnds.length };
-    var top = chartStrip.barRows * BAR_ROW_H + chartStrip.markRows * MARK_ROW_H;
-    if (!options.layout) options.layout = {}; // 그래프가 이미 있으면 기존 설정 객체를 그대로 씀
-    options.layout.padding = { top: top ? top + STRIP_GAP : 8, right: PAD_RIGHT };
-    // 위쪽 번호·막대 줄만큼 그래프 칸 높이를 늘려서 선 그래프 영역이 좁아지지 않게 함
-    var box = document.querySelector('.chart-box');
-    if (box) box.style.setProperty('--strip-h', (top ? top + STRIP_GAP : 0) + 'px');
+    return groups.sort(function (a, b) { return a.at - b.at; });
+  }
+  function groupAt(index) {
+    for (var i = 0; i < chartGroups.length; i++) if (chartGroups[i].at === index) return chartGroups[i];
+    return null;
+  }
+  // 합친 마커 색: 의미가 모두 같으면 그 색, 빨강·초록이 섞이면 기본 네이비
+  function groupColor(g) {
+    var colors = g.items.map(function (it) { return kindColor(it.kind); });
+    return colors.every(function (c) { return c === colors[0]; }) ? colors[0] : C.navy;
   }
 
-  // 실제 그래프 좌표로 번호·막대 위치 계산
-  function markerGeometry(ch) {
+  // 그래프 점에 마우스를 올리거나 탭했을 때 툴팁에 붙는 항목 (범례와 같은 내용)
+  function tooltipItemsAt(index) {
+    return chartItems.filter(function (it) {
+      return it.shape === 'point' ? it.at === index : index >= it.from && index < it.to;
+    }).sort(function (a, b) { return a.n - b.n; });
+  }
+
+  // 기간 막대가 겹치면 다음 줄로 내림. 그래프 폭으로 각 달의 가로 위치를 어림해서 줄을 정하고,
+  // 막대가 있을 때만 그 줄 수만큼 그래프 위쪽 공간을 만듦
+  function applyChartLayout(options, width, months) {
+    var step = (width - PAD_RIGHT - AXIS_LEFT) / Math.max(1, months);
+    function xAt(i) { return AXIS_LEFT + Math.min(i, months) * step; }
+    var ends = [];
+    chartItems.forEach(function (it) {
+      if (it.shape !== 'bar') return;
+      var x1 = xAt(it.from) - BAR_R - 2;
+      var r = 0;
+      while (ends[r] !== undefined && x1 < ends[r]) r++;
+      ends[r] = xAt(it.to) + 4;
+      it.row = r;
+    });
+    chartBarRows = ends.length;
+    var strip = chartBarRows ? chartBarRows * BAR_ROW_H + BAR_GAP : 0;
+    if (!options.layout) options.layout = {}; // 그래프가 이미 있으면 기존 설정 객체를 그대로 씀
+    options.layout.padding = { top: strip + 6, right: PAD_RIGHT };
+    // 막대 줄만큼 그래프 칸 높이를 늘려서 선 그래프 영역이 좁아지지 않게 함
+    var box = document.querySelector('.chart-box');
+    if (box) box.style.setProperty('--strip-h', strip + 'px');
+  }
+
+  // 실제 그래프 좌표로 막대 위치 계산 (막대는 그래프 영역 바로 위, 0번 줄이 가장 아래)
+  function barGeometry(ch) {
     var pts = ch.getDatasetMeta(0).data;
     var area = ch.chartArea;
     var last = pts.length - 1;
-    var markBase = area.top - STRIP_GAP;
-    var barBase = markBase - chartStrip.markRows * MARK_ROW_H;
     var out = [];
     chartItems.forEach(function (it) {
-      if (it.shape === 'bar') {
-        if (!pts[it.from]) return;
-        var x1 = pts[it.from].x;
-        var x2 = it.to <= last ? pts[it.to].x : (ch.$stopped ? pts[last].x : area.right);
-        if (x2 - x1 < 4) x2 = x1 + 4;
-        var y = barBase - BAR_ROW_H / 2 - it.row * BAR_ROW_H;
-        var cx = Math.min(x2 + 4 + BAR_R, ch.width - BAR_R - 1);
-        out.push({ item: it, x1: x1, x2: x2, y: y, cx: cx, r: BAR_R,
-          hit: { x1: x1 - 2, x2: cx + BAR_R + 2, y1: y - BAR_R - 2, y2: y + BAR_R + 2 } });
-      } else {
-        var pt = pts[it.index];
-        if (!pt) return;
-        var my = markBase - MARK_ROW_H / 2 - it.row * MARK_ROW_H;
-        out.push({ item: it, cx: pt.x, y: my, r: MARK_R, pointY: Math.min(pt.y, area.bottom),
-          hit: { x1: pt.x - MARK_R - 3, x2: pt.x + MARK_R + 3, y1: my - MARK_R - 3, y2: my + MARK_R + 3 } });
-      }
+      if (it.shape !== 'bar' || !pts[it.from]) return;
+      var x1 = pts[it.from].x;
+      var x2 = it.to <= last ? pts[it.to].x : (ch.$stopped ? pts[last].x : area.right);
+      if (x2 - x1 < 4) x2 = x1 + 4;
+      out.push({ item: it, x1: x1, x2: x2, y: area.top - BAR_GAP - BAR_ROW_H / 2 - it.row * BAR_ROW_H });
     });
     return out;
   }
 
-  // 번호·막대·0원 기준선을 그리는 플러그인
+  // 번호가 들어간 동그라미 (글자가 길면 알약 모양으로 늘어남)
+  function drawBadge(ctx, x, y, r, text, color, font, ring) {
+    ctx.font = font;
+    var w = Math.max(r * 2, ctx.measureText(text).width + 10);
+    ctx.beginPath();
+    if (w === r * 2 || !ctx.roundRect) ctx.arc(x, y, r, 0, Math.PI * 2);
+    else ctx.roundRect(x - w / 2, y - r, w, r * 2, r);
+    ctx.fillStyle = color;
+    ctx.fill();
+    if (ring) {
+      ctx.strokeStyle = C.white;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    ctx.fillStyle = C.white;
+    ctx.fillText(text, x, y + 0.5);
+  }
+
+  // 막대·마커·0원 기준선·현금 소진 마커를 그리는 플러그인
   var markerPlugin = {
     id: 'chartMarkers',
-    // 옅은 회색 점선은 선 그래프 아래에 먼저 그림
+    // 막대 양 끝의 옅은 회색 점선은 선 그래프 아래에 먼저 그림
     beforeDatasetsDraw: function (ch) {
-      if (!chartItems.length) return;
+      if (!chartBarRows) return;
       var ctx = ch.ctx, area = ch.chartArea;
       ctx.save();
       ctx.strokeStyle = C.lineStrong;
       ctx.lineWidth = 1;
       ctx.setLineDash([2, 3]);
-      markerGeometry(ch).forEach(function (g) {
+      barGeometry(ch).forEach(function (g) {
         ctx.beginPath();
-        if (g.item.shape === 'bar') {
-          // 막대 양 끝에서 그래프 아래까지
-          ctx.moveTo(g.x1, g.y); ctx.lineTo(g.x1, area.bottom);
-          ctx.moveTo(g.x2, g.y); ctx.lineTo(g.x2, area.bottom);
-        } else {
-          // 번호에서 해당 달의 점까지
-          ctx.moveTo(g.cx, g.y + g.r); ctx.lineTo(g.cx, g.pointY);
-        }
+        ctx.moveTo(g.x1, g.y); ctx.lineTo(g.x1, area.bottom);
+        ctx.moveTo(g.x2, g.y); ctx.lineTo(g.x2, area.bottom);
         ctx.stroke();
       });
       ctx.restore();
     },
     afterDatasetsDraw: function (ch) {
       var ctx = ch.ctx, area = ch.chartArea;
-      ctx.save();
-      // 0원 기준선: 세로축이 0부터 시작하므로 항상 그래프 맨 아래에 보임
+      var pts = ch.getDatasetMeta(0).data;
+      var values = ch.data.datasets[0].data;
       var y0 = ch.scales.y.getPixelForValue(0);
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      // 0원 기준선
       ctx.strokeStyle = C.neg;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
@@ -1069,28 +1086,45 @@
       ctx.lineTo(area.right, y0);
       ctx.stroke();
 
+      // 기간 막대 + 왼쪽 시작점 번호
       chartHits = [];
-      ctx.font = NUM_FONT;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      markerGeometry(ch).forEach(function (g) {
+      barGeometry(ch).forEach(function (g) {
         var color = kindColor(g.item.kind);
-        if (g.item.shape === 'bar') {
-          ctx.strokeStyle = color;
-          ctx.lineWidth = BAR_THICK;
-          ctx.lineCap = 'round';
-          ctx.beginPath();
-          ctx.moveTo(g.x1, g.y);
-          ctx.lineTo(g.x2, g.y);
-          ctx.stroke();
-        }
-        ctx.fillStyle = color;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = BAR_THICK;
+        ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.arc(g.cx, g.y, g.r, 0, Math.PI * 2);
+        ctx.moveTo(g.x1, g.y);
+        ctx.lineTo(g.x2, g.y);
+        ctx.stroke();
+        drawBadge(ctx, g.x1, g.y, BAR_R, String(g.item.n), color, BAR_FONT, false);
+        chartHits.push({ item: g.item, cx: g.x1, y: g.y, r: BAR_R,
+          x1: g.x1 - BAR_R - 2, x2: g.x2 + 2, y1: g.y - BAR_R - 2, y2: g.y + BAR_R + 2 });
+      });
+
+      // 현금 소진: 선이 0원 아래로 내려가는 지점에 빨간 마커
+      if (ch.$stopped && pts.length) {
+        var last = pts.length - 1;
+        var rx = pts[last].x;
+        if (last > 0 && values[last] < 0 && values[last - 1] > 0) {
+          var v0 = values[last - 1], v1 = values[last];
+          rx = pts[last - 1].x + (pts[last].x - pts[last - 1].x) * (v0 / (v0 - v1));
+        }
+        ctx.beginPath();
+        ctx.arc(rx, y0, RUNOUT_R, 0, Math.PI * 2);
+        ctx.fillStyle = C.neg;
         ctx.fill();
-        ctx.fillStyle = C.white;
-        ctx.fillText(String(g.item.n), g.cx, g.y + 0.5);
-        chartHits.push({ item: g.item, cx: g.cx, y: g.y, r: g.r, x1: g.hit.x1, x2: g.hit.x2, y1: g.hit.y1, y2: g.hit.y2 });
+        ctx.strokeStyle = C.white;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      // 잔고 선 위 번호 마커 (같은 점이면 "2·3"처럼 합침)
+      chartGroups.forEach(function (g) {
+        var pt = pts[g.at];
+        if (!pt) return;
+        var text = g.items.map(function (it) { return it.n; }).join('·');
+        drawBadge(ctx, pt.x, Math.min(pt.y, area.bottom), MARK_R, text, groupColor(g), MARK_FONT, true);
       });
       ctx.restore();
     }
@@ -1108,26 +1142,7 @@
     el.appendChild(text);
   }
 
-  // 범례 위 작은 안내 한 줄
-  function keyHintText() {
-    if (!chartItems.length) return '';
-    function has(k) { return chartItems.some(function (it) { return it.kind === k; }); }
-    var greens = [];
-    if (has('invest')) greens.push('투자');
-    if (has('down')) greens.push('비용 절감');
-    if (has('breakeven')) greens.push('흑자 전환');
-    var parts = [];
-    if (has('up')) parts.push('빨강은 지출 증가');
-    if (greens.length) parts.push('초록은 ' + greens.join(', '));
-    var head = parts.join(', ');
-    var lastWord = head.slice(-2);
-    if (chartItems.some(function (it) { return it.shape === 'bar'; })) {
-      return head + (hasBatchim(lastWord) ? '이고' : '고') + ', 가로 막대는 기간 한정 지출이 적용되는 기간이에요.';
-    }
-    return head + (hasBatchim(lastWord) ? '이에요.' : '예요.');
-  }
-
-  // 번호·막대에 마우스를 올리거나 탭하면 뜨는 설명 (범례와 같은 내용)
+  // 위쪽 막대에 마우스를 올리거나 탭하면 뜨는 설명 (선 위 마커는 그래프 툴팁에 같은 내용이 나옴)
   function hideMarkerTip() {
     var tip = document.getElementById('chart-tip');
     if (tip) tip.hidden = true;
@@ -1176,17 +1191,16 @@
     var months = data.values.length - 1;
     var last = data.values[months];
 
-    // 그래프 아래 핵심 한 줄
+    // 그래프 제목 아래 결론 한 줄
     noteEl.textContent = data.stopped
       ? monthText(runOutMonth) + '에 현금이 바닥나요.'
       : months + '개월 뒤 잔고는 약 ' + won(last) + '이에요.';
 
     chartItems = buildChartItems(data, runOutMonth);
-    chartBreakEven = data.breakEven;
+    chartGroups = buildGroups();
     chartMonths = months;
 
     // 범례 (번호 순서대로)
-    document.getElementById('chart-key').textContent = keyHintText();
     var legendEl = document.getElementById('chart-legend');
     legendEl.innerHTML = '';
     chartItems.forEach(function (it) {
@@ -1220,26 +1234,21 @@
           displayColors: false,
           callbacks: {
             label: function (c) { return '잔고 ' + comma(c.raw) + '만원 (' + won(c.raw) + ')'; },
-            // 이 달의 번호 항목과 이 달에 적용 중인 기간 한정 지출 (범례와 같은 내용)
             afterLabel: function (c) {
-              return pointItemsAt(c.dataIndex).concat(barItemsAt(c.dataIndex))
-                .sort(function (a, b) { return a.n - b.n; })
-                .map(function (it) { return circled(it.n) + ' ' + it.text; });
+              return tooltipItemsAt(c.dataIndex).map(function (it) { return circled(it.n) + ' ' + it.text; });
             }
           }
         }
       },
       scales: {
         x: {
-          title: { display: true, text: '년/월', color: C.muted },
           grid: { display: false },
           ticks: { color: C.muted, autoSkip: true, maxTicksLimit: 7, maxRotation: 0 }
         },
         y: {
-          min: 0, // 항상 0부터 시작 (0 아래로 내려가는 소진 구간은 0원 기준선에서 끊겨 보임)
+          min: 0, // 항상 0부터 시작
           grace: '12%',
-          title: { display: true, text: '잔고 (만원)', color: C.muted },
-          ticks: { color: C.muted, callback: function (v) { return comma(v); } },
+          ticks: { color: C.muted, callback: axisMoney },
           grid: { color: C.lineSoft }
         }
       }
@@ -1257,12 +1266,18 @@
           borderWidth: 2.5,
           backgroundColor: C.accentFill,
           fill: 'origin',
-          tension: 0.25,
-          cubicInterpolationMode: 'monotone', // 투자금이 들어와 잔고가 뛰어도 곡선이 출렁이지 않게
-          pointRadius: pointSize,
-          pointHoverRadius: 6,
-          pointBackgroundColor: pointColor,
-          pointBorderColor: pointColor
+          tension: 0, // 직선으로 연결
+          // 0원 아래로 내려가는 부분은 0원 기준선에서 정확히 끊음
+          clip: { left: 6, top: 6, right: 6, bottom: 0 },
+          // 매달 점은 찍지 않고, 마지막 달에만 작은 점 (이벤트 달은 번호 마커, 현금 소진은 빨간 마커로 따로 그림)
+          pointRadius: function (c) {
+            var lastIndex = c.dataset.data.length - 1;
+            if (c.dataIndex !== lastIndex || c.chart.$stopped || groupAt(lastIndex)) return 0;
+            return 3.5;
+          },
+          pointHoverRadius: 4,
+          pointBackgroundColor: C.navy,
+          pointBorderColor: C.navy
         }]
       },
       plugins: [markerPlugin],
