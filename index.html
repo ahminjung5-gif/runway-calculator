@@ -205,6 +205,24 @@
     color: var(--navy-deep);
     font-weight: 600;
   }
+  /* 상황별 안내 */
+  .status {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 18px;
+    padding: 13px 16px;
+    border-radius: 12px;
+    font-size: 16px; font-weight: 700;
+    line-height: 1.4;
+  }
+  .status::before {
+    content: ""; flex: none;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: currentColor;
+  }
+  .status.red { background: #FFE1D8; color: #B3261E; }
+  .status.orange { background: #FFE8CC; color: #A9500A; }
+  .status.green { background: #DCF2E3; color: #1B7440; }
+  .status + .note { margin-top: 10px; }
   .note.danger { background: #FFE1D8; color: #7A2414; }
   .note.calm { background: rgba(255,255,255,.1); color: #E4EAF7; font-weight: 500; }
 
@@ -456,6 +474,16 @@
     return html;
   }
 
+  // 상황별 안내 문구
+  function statusBox(color, text) {
+    return '<div class="status ' + color + '" role="status">' + text + '</div>';
+  }
+  function runwayStatus(runway) {
+    if (runway < 6) return statusBox('red', '지금 바로 투자 유치나 비용 절감이 필요해요');
+    if (runway < 12) return statusBox('orange', '투자 준비는 ' + monthText(Math.floor(runway) - 6) + '까지 시작하세요');
+    return statusBox('green', '여유가 있어요');
+  }
+
   function rateText(g) {
     return (Math.round(g * 100) / 100) + '%';
   }
@@ -468,17 +496,62 @@
   function balanceSeries(cash, expense, revenue, g) {
     var labels = [], values = [];
     var balance = cash, rev = revenue;
+    var breakEven = null;
+    var wasBurning = expense - revenue > 0;
     for (var k = 0; k <= CHART_MONTHS; k++) {
       labels.push(monthText(k));
       values.push(Math.round(balance));
+      // 적자였다가 성장으로 매출이 지출 이상이 된 첫 달
+      if (breakEven === null && wasBurning && g > 0 && balance > 0 && expense - rev <= 0) breakEven = k;
       if (balance <= 0 && (k > 0 || expense - rev > 0)) break;
       balance -= expense - rev;
       rev = rev * (1 + g / 100);
     }
-    return { labels: labels, values: values };
+    return { labels: labels, values: values, breakEven: breakEven };
   }
 
-  function pointColor(c) { return c.raw <= 0 ? '#C8412E' : '#1D418C'; }
+  var BREAK_EVEN_COLOR = '#1B7440';
+  var chartBreakEven = null; // 그래프에서 흑자 전환 달의 위치
+
+  function pointColor(c) {
+    if (c.dataIndex === chartBreakEven) return BREAK_EVEN_COLOR;
+    return c.raw <= 0 ? '#C8412E' : '#1D418C';
+  }
+  function pointSize(c) { return c.dataIndex === chartBreakEven ? 6 : 2.5; }
+
+  // 흑자 전환 달에 초록 점선과 라벨을 그리는 작은 플러그인
+  var breakEvenPlugin = {
+    id: 'breakEvenLine',
+    afterDatasetsDraw: function (ch) {
+      if (chartBreakEven === null) return;
+      var pt = ch.getDatasetMeta(0).data[chartBreakEven];
+      if (!pt) return;
+      var ctx = ch.ctx, area = ch.chartArea;
+      ctx.save();
+      ctx.strokeStyle = BREAK_EVEN_COLOR;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(pt.x, area.top + 22);
+      ctx.lineTo(pt.x, area.bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      var text = '흑자 전환';
+      ctx.font = '700 12px Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+      var w = ctx.measureText(text).width + 14, h = 20;
+      var x = Math.max(area.left, Math.min(area.right - w, pt.x - w / 2));
+      var y = area.top;
+      ctx.fillStyle = BREAK_EVEN_COLOR;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x, y, w, h, 6); else ctx.rect(x, y, w, h);
+      ctx.fill();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, x + 7, y + h / 2 + 1);
+      ctx.restore();
+    }
+  };
 
   function updateChart(cash, expense, revenue, g) {
     var box = document.querySelector('.chart-box');
@@ -496,6 +569,10 @@
       noteEl.textContent = data.labels[months] + '에 현금이 0원 이하로 내려가서 그 뒤는 그리지 않았어요.';
     } else {
       noteEl.textContent = months + '개월 뒤인 ' + data.labels[months] + ' 잔고는 약 ' + won(last) + '이에요.';
+    }
+    chartBreakEven = data.breakEven;
+    if (chartBreakEven !== null) {
+      noteEl.textContent += ' 초록 점선은 흑자 전환 예상 달(' + data.labels[chartBreakEven] + ')이에요.';
     }
 
     if (chart) {
@@ -517,12 +594,13 @@
           backgroundColor: 'rgba(255, 229, 153, 0.45)',
           fill: 'origin',
           tension: 0.25,
-          pointRadius: 2.5,
+          pointRadius: pointSize,
           pointHoverRadius: 6,
           pointBackgroundColor: pointColor,
           pointBorderColor: pointColor
         }]
       },
+      plugins: [breakEvenPlugin],
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -536,7 +614,8 @@
             padding: 10,
             displayColors: false,
             callbacks: {
-              label: function (c) { return '잔고 ' + comma(c.raw) + '만원 (' + won(c.raw) + ')'; }
+              label: function (c) { return '잔고 ' + comma(c.raw) + '만원 (' + won(c.raw) + ')'; },
+              afterLabel: function (c) { return c.dataIndex === chartBreakEven ? '흑자 전환 예상 달' : ''; }
             }
           }
         },
@@ -547,6 +626,7 @@
             ticks: { color: '#5F6B80', autoSkip: true, maxTicksLimit: 7, maxRotation: 0 }
           },
           y: {
+            grace: '12%',
             title: { display: true, text: '잔고 (만원)', color: '#5F6B80' },
             ticks: { color: '#5F6B80', callback: function (v) { return comma(v); } },
             grid: {
@@ -591,6 +671,7 @@
       } else {
         safeNote = '매출과 지출이 딱 같아요. 지출이 조금만 늘어도 현금이 줄기 시작하니 살펴봐 주세요.';
       }
+      html += statusBox('green', '여유가 있어요');
       html += '<div class="note">' + safeNote + '</div>';
       els.result.innerHTML = html;
       return;
@@ -604,6 +685,7 @@
         '<div class="stat"><div class="k">' + burnLabel + '</div><div class="v">' + won(Math.max(burn, 0)) + '</div></div>' +
         '<div class="stat"><div class="k">런웨이</div><div class="v">0개월</div></div>' +
         '</div>';
+      html += runwayStatus(0);
       html += '<div class="note danger">' + (burn > 0
         ? '지금은 매달 ' + won(burn) + '이 부족해요. '
         : '') + '보유 현금을 넣으면 버틸 수 있는 기간을 계산해요.</div>';
@@ -629,6 +711,7 @@
         '<div class="stat"><div class="k">' + burnLabel + '</div><div class="v">' + won(burn) + '</div></div>' +
         '<div class="stat"><div class="k">흑자 전환 예상</div><div class="v">' + monthText(sim.breakEven - 1) + '</div></div>' +
         '</div>';
+      html += statusBox('green', monthText(sim.breakEven - 1) + ' 흑자 전환 예상');
       html += '<div class="note">흑자 전환 전까지 현금이 가장 적을 때 약 ' + won(sim.minBalance) +
         '이 남아요. 성장률이 예상보다 낮으면 결과가 달라지니 0%일 때도 함께 확인해 보세요.</div>';
       els.result.innerHTML = html;
@@ -667,6 +750,7 @@
       '<div class="stat"><div class="k">' + burnLabel + '</div><div class="v">' + won(Math.max(burn, 0)) + '</div></div>' +
       '<div class="stat"><div class="k">현금 소진 예상</div><div class="v">' + endText + '</div></div>' +
       '</div>';
+    html += runwayStatus(runway);
     html += '<div class="' + noteClass + '">' + note + '</div>';
 
     els.result.innerHTML = html;
