@@ -134,32 +134,57 @@
   .zero-date { font-size: 17px; color: #DCE4F5; }
   .zero-date strong { color: var(--white); }
 
-  /* 개월 막대 */
-  .months { margin: 24px 0 8px; }
-  .month-grid {
-    display: grid;
-    grid-template-columns: repeat(12, 1fr);
-    gap: 5px;
+  /* 런웨이 막대 (0~36개월) */
+  .rbar { margin: 26px 0 6px; }
+  .rbar-left {
+    font-size: clamp(22px, 5vw, 28px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--white);
+    margin-bottom: 12px;
+    font-variant-numeric: tabular-nums;
   }
-  .cell {
-    aspect-ratio: 1 / 1;
-    border-radius: 4px;
-    background: rgba(255,255,255,.08);
+  .rbar-area { position: relative; padding-top: 34px; }
+  .rbar-tag {
+    position: absolute; top: 0;
+    font-size: 13px; font-weight: 700;
+    background: var(--butter); color: var(--navy-deep);
+    padding: 4px 9px; border-radius: 7px;
+    white-space: nowrap;
+  }
+  .rbar-track {
     position: relative;
-    overflow: hidden;
+    height: 18px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.1);
   }
-  .cell i {
-    position: absolute; inset: 0 auto 0 0;
+  .rbar-grid {
+    position: absolute; top: 4px; bottom: 4px; width: 1px;
+    background: rgba(255,255,255,.18);
+  }
+  .rbar-fill {
+    position: absolute; top: 0; bottom: 0; left: 0;
+    border-radius: 999px;
     background: var(--butter);
-    width: 0;
-    transition: width .35s ease;
   }
-  .cell.warn i { background: #FF9C7A; }
-  .cell.year-start { box-shadow: inset 0 0 0 1px rgba(255,229,153,.45); }
-  .month-legend {
-    display: flex; justify-content: space-between;
-    font-size: 12px; color: #93A6D1; margin-top: 8px;
+  .rbar-pin {
+    position: absolute; top: -8px; bottom: -4px; width: 2px;
+    margin-left: -1px;
+    background: var(--butter);
   }
+  .rbar.warn .rbar-fill, .rbar.warn .rbar-pin, .rbar.warn .rbar-tag { background: #FF9C7A; }
+  .rbar.warn .rbar-tag { color: #5A1B0E; }
+  .rbar-ticks {
+    position: relative;
+    height: 18px;
+    margin-top: 9px;
+    font-size: 12px;
+    color: #93A6D1;
+    font-variant-numeric: tabular-nums;
+  }
+  .rbar-ticks span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+  .rbar-ticks span:first-child { transform: none; }
+  .rbar-ticks span:last-child { transform: translateX(-100%); }
 
   .stats {
     display: grid; grid-template-columns: 1fr 1fr;
@@ -202,7 +227,6 @@
     header { padding: 32px 20px 84px; }
     .grid { grid-template-columns: 1fr; }
     .panel { padding: 22px 20px; }
-    .month-grid { gap: 4px; }
   }
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
@@ -406,16 +430,29 @@
     return balance;
   }
 
-  function monthGrid(runway) {
-    var html = '<div class="months"><div class="month-grid">';
-    for (var i = 0; i < MAX_CELLS; i++) {
-      var fill = Math.max(0, Math.min(1, runway - i));
-      var cls = 'cell';
-      if (i % 12 === 0) cls += ' year-start';
-      if (runway < 6) cls += ' warn';
-      html += '<div class="' + cls + '"><i style="width:' + (fill * 100) + '%"></i></div>';
+  // 0~36개월 가로 막대
+  function runwayBar(runway, shown, endText) {
+    var over = runway > MAX_CELLS;
+    var pct = Math.max(0, Math.min(100, runway / MAX_CELLS * 100));
+    var leftText = over ? '36개월 이상' : shown + '개월 남음';
+
+    var html = '<div class="rbar' + (runway < 6 ? ' warn' : '') + '">';
+    html += '<div class="rbar-left">' + leftText + '</div>';
+    html += '<div class="rbar-area">';
+    // 채워진 끝에 붙는 표시 (막대 밖으로 나가지 않게 위치 보정)
+    html += '<div class="rbar-tag" style="left:' + pct + '%;transform:translateX(-' + pct + '%)">현금 소진 ' + endText + '</div>';
+    html += '<div class="rbar-track" role="img" aria-label="36개월 중 ' + leftText + ', 현금 소진 ' + endText + '">';
+    for (var t = 6; t < MAX_CELLS; t += 6) {
+      html += '<span class="rbar-grid" style="left:' + (t / MAX_CELLS * 100) + '%"></span>';
     }
-    html += '</div><div class="month-legend"><span>지금</span><span>1년</span><span>2년</span><span>3년</span></div></div>';
+    html += '<div class="rbar-fill" style="width:' + pct + '%"></div>';
+    html += '<span class="rbar-pin" style="left:' + Math.max(0.3, Math.min(99.7, pct)) + '%"></span>';
+    html += '</div></div>';
+    html += '<div class="rbar-ticks" aria-hidden="true">';
+    for (var m = 0; m <= MAX_CELLS; m += 6) {
+      html += '<span style="left:' + (m / MAX_CELLS * 100) + '%">' + m + (m === MAX_CELLS ? '개월' : '') + '</span>';
+    }
+    html += '</div></div>';
     return html;
   }
 
@@ -625,10 +662,7 @@
     html += '<p class="sub">' + subText + '</p>';
     html += '<div class="runway"><span class="num">' + shown + '</span><span class="label">개월</span></div>';
     html += '<p class="zero-date"><strong>' + endText + '</strong>쯤 현금이 바닥나요.</p>';
-    html += monthGrid(runway);
-    if (runway > MAX_CELLS) {
-      html += '<p class="month-legend" style="justify-content:flex-start">3년이 넘어서 막대가 가득 찼어요.</p>';
-    }
+    html += runwayBar(runway, shown, endText);
     html += '<div class="stats">' +
       '<div class="stat"><div class="k">' + burnLabel + '</div><div class="v">' + won(Math.max(burn, 0)) + '</div></div>' +
       '<div class="stat"><div class="k">현금 소진 예상</div><div class="v">' + endText + '</div></div>' +
