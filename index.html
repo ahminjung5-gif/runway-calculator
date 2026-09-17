@@ -583,7 +583,7 @@
   // 계산할 때마다 입력칸에서 읽어 채움: [{ name, month, amount }]
   var investments = [];
 
-  // k개월 뒤(0 = 이번 달) 월초에 들어오는 투자금 합계
+  // k개월 차(0 = 이번 달)에 들어오는 투자금 합계
   function investAt(k) {
     var sum = 0;
     for (var i = 0; i < investments.length; i++) {
@@ -667,7 +667,7 @@
 
   // 한 달씩 잔고 계산
   // 이번 달(0개월 차)은 지금 매출 그대로, 다음 달부터 성장률 반영
-  // useInvest가 true면 투자금이 들어오는 달 월초에 잔고에 더함
+  // useInvest가 true면 투자금이 들어오는 달의 현금 흐름에 더함
   function simulate(cash, expense, revenue, g, useInvest) {
     var balance = cash;
     var rev = revenue;
@@ -739,6 +739,12 @@
     return true;
   }
 
+  // 현금 소진 달: 마지막 남은 현금을 쓰는 달 (그 달 말 잔고가 0원 이하가 되는 달)
+  // 예) 런웨이 2.5개월 → 2개월 차, 딱 3개월 → 2개월 차(그 달 말에 정확히 0원)
+  function runOutMonthOf(runway) {
+    return Math.max(0, Math.ceil(runway) - 1);
+  }
+
   // 경고 단계: 6개월 미만 빨강, 12개월 미만 주황, 그 이상 초록
   function levelOf(runway) {
     if (runway < 6) return 'red';
@@ -778,7 +784,7 @@
   }
   function runwayStatus(runway) {
     var level = levelOf(runway);
-    var prep = monthText(Math.floor(runway) - 6); // 현금 소진 6개월 전
+    var prep = monthText(runOutMonthOf(runway) - 6); // 현금 소진 6개월 전
     if (level === 'red') {
       return statusBox('red', '지금 바로 투자 유치나 비용 절감이 필요해요.',
         '남은 기간이 6개월도 되지 않아, 투자 유치에 걸리는 시간을 생각하면 이미 준비를 시작했어야 할 시점이에요.');
@@ -837,35 +843,34 @@
   var CHART_MONTHS = 36;
   var chart = null;
 
-  // k개월 뒤 월초 잔고 목록 (0 = 지금)
-  // runOutMonth는 결과 카드가 계산한 현금 소진 달. 그래프도 이 달을 기준으로 끊어서 두 곳의 월이 항상 같음
-  // 모든 표시는 같은 규칙: k번째 점 = k개월 차 월초 잔고, k번째 점 → 다음 점 구간 = k개월 차에 일어나는 일
-  // (지출 변화, 투자 입금, 흑자 전환, 현금 소진 모두 그 달의 점에 표시되고 그 점 오른쪽 구간에 반영됨)
+  // k개월 차(0 = 이번 달) 월말 잔고 목록. 모두 36개월
+  // 규칙: k번째 점 = k개월 차에 들어온 투자와 나간 지출이 모두 반영된 그 달 말 잔고
+  // 그래서 지출 변화, 투자, 흑자 전환, 현금 소진 모두 입력 문장·범례에 적힌 달의 점에 표시됨
+  // runOutMonth는 결과 카드가 계산한 현금 소진 달. 그래프는 그 달 점에서 0원으로 끝남
   function balanceSeries(cash, expense, revenue, g, runOutMonth) {
     var labels = [], values = [];
     var balance = cash, rev = revenue;
     var breakEven = null;
     var stopped = false;
     var prevBurning = null;
-    for (var k = 0; k <= CHART_MONTHS; k++) {
+    for (var k = 0; k < CHART_MONTHS; k++) {
       labels.push(monthText(k));
-      // 월초 잔고는 이 달 투자금이 들어오기 전 값으로 찍음.
-      // 투자금은 이 달 흐름에 더해져서, 표시한 달의 점부터 잔고가 올라감 (지출 변화와 같은 기준)
-      values.push(Math.round(balance));
       // 현금이 바닥난 뒤에 들어오는 투자는 반영하지 않음
       if (runOutMonth === null || k <= runOutMonth) balance += investAt(k);
       var burnK = expenseAt(expense, k) - rev;
       var burnS = expenseAt(expense, k, false) - rev; // 일회성 지출 제외
+      balance -= burnK;
       // 적자였다가 매출 성장이나 비용 절감으로 매출이 지출 이상이 된 달
       if (prevBurning === true && burnS <= 0 && balance > 0) breakEven = k;
       if (burnS > 0 && breakEven !== null) breakEven = null; // 다시 적자면 표시하지 않음
       prevBurning = burnS > 0;
-      // 소진 달의 잔고가 이미 0 이하면 그 달까지, 아니면 다음 달(0 아래로 내려간 점)까지 그림
-      if (runOutMonth !== null && (k === runOutMonth + 1 || (k === runOutMonth && balance <= 0))) {
+      if (runOutMonth !== null && k === runOutMonth) {
+        // 현금 소진 달: 그 달 말 잔고는 0원 이하 → 그래프는 이 점에서 0원에 닿고 끝남
+        values.push(0);
         stopped = true;
         break;
       }
-      balance -= burnK;
+      values.push(Math.round(balance));
       rev = rev * (1 + g / 100);
     }
     return { labels: labels, values: values, breakEven: breakEven, stopped: stopped };
@@ -886,7 +891,7 @@
   // 그래프 표시 항목 (번호 = 달 순서): [{ n, kind, shape, month, at, from, to, text, row }]
   // kind: 'up' 지출 증가(빨강) / 'down' 비용 절감(초록) / 'invest' 투자(초록) / 'breakeven' 흑자 전환(초록)
   // shape: 'bar' 위쪽 가로 막대 (기간 한정 지출) / 'point' 잔고 선 위 동그라미 마커
-  // month: 입력한 달(범례·입력 문장과 같은 달), at: 마커를 찍는 그래프 점 위치
+  // month: 입력한 달(범례·입력 문장과 같은 달), at: 마커를 찍는 그래프 점 위치 (월말 잔고라서 항상 month와 같음)
   var chartItems = [];
   var chartGroups = [];   // 같은 점의 마커를 합친 것: [{ at, items }]
   var chartBarRows = 0;   // 위쪽 막대 줄 수
@@ -916,13 +921,6 @@
     return (v < 0 ? '-' : '') + text;
   }
 
-  // 투자·일회성 지출은 금액이 반영된 뒤의 점(다음 달 월초 잔고)에 마커를 찍음.
-  // 다음 점이 없거나 0원 아래로 잘린 점이면 그 달의 점에 찍음
-  function afterPoint(month, data) {
-    var last = data.values.length - 1;
-    return month + 1 <= last && data.values[month + 1] >= 0 ? month + 1 : month;
-  }
-
   // 그려진 기간 안의 지출 변화, 투자, 흑자 전환을 번호 순서(입력한 달 순서)로 모음
   function buildChartItems(data, runOutMonth) {
     var months = data.values.length - 1;
@@ -937,27 +935,26 @@
           ? monthText(c.start)
           : monthText(c.start) + '~' + monthText(c.start + c.duration - 1);
         item.shape = 'bar';
-        item.from = c.start;
-        item.to = c.start + c.duration;
+        item.from = c.start;                  // 시작 달 점
+        item.to = c.start + c.duration - 1;   // 종료 달 점
         item.text = c.name + ' · 기간 지출 · ' + period + ' · 월 ' + signedWon(c.amount);
       } else if (c.type === 'once') {
         item.shape = 'point';
-        item.at = afterPoint(c.start, data); // 금액이 빠져나간 뒤의 점
+        item.at = c.start;
         item.text = c.name + ' · 일회성 지출 · ' + monthText(c.start) + ' · ' + signedWon(c.amount);
       } else {
         item.shape = 'point';
-        item.at = c.start; // 매달 반복: 잔고 선의 기울기가 바뀌기 시작하는 점
+        item.at = c.start;
         item.text = c.name + ' · 반복 지출 · ' + monthText(c.start) + '부터 · 월 ' + signedWon(c.amount);
       }
       list.push(item);
     });
     investments.forEach(function (v) {
       if (v.month > months || (runOutMonth !== null && v.month > runOutMonth)) return;
-      list.push({ kind: 'invest', shape: 'point', month: v.month, at: afterPoint(v.month, data), order: 1, seq: seq++,
+      list.push({ kind: 'invest', shape: 'point', month: v.month, at: v.month, order: 1, seq: seq++,
         text: v.name + ' · 투자 · ' + monthText(v.month) + ' · ' + signedWon(v.amount) });
     });
     if (data.breakEven !== null) {
-      // 흑자 전환: 잔고가 줄다가 멈추는(꺾이는) 점
       list.push({ kind: 'breakeven', shape: 'point', month: data.breakEven, at: data.breakEven, order: 2, seq: seq++,
         text: '흑자 전환 · ' + data.labels[data.breakEven] });
     }
@@ -989,7 +986,7 @@
   // 그래프 점에 마우스를 올리거나 탭했을 때 툴팁에 붙는 항목 (범례와 같은 내용)
   function tooltipItemsAt(index) {
     return chartItems.filter(function (it) {
-      return it.shape === 'point' ? it.at === index : index >= it.from && index < it.to;
+      return it.shape === 'point' ? it.at === index : index >= it.from && index <= it.to;
     }).sort(function (a, b) { return a.n - b.n; });
   }
 
@@ -1025,7 +1022,8 @@
     chartItems.forEach(function (it) {
       if (it.shape !== 'bar' || !pts[it.from]) return;
       var x1 = pts[it.from].x;
-      var x2 = it.to <= last ? pts[it.to].x : (ch.$stopped ? pts[last].x : area.right);
+      // 종료 달 점까지. 그래프가 먼저 끝나면 마지막 점까지
+      var x2 = it.to <= last ? pts[it.to].x : pts[last].x;
       if (x2 - x1 < 4) x2 = x1 + 4;
       out.push({ item: it, x1: x1, x2: x2, y: area.top - BAR_GAP - BAR_ROW_H / 2 - it.row * BAR_ROW_H });
     });
@@ -1072,7 +1070,6 @@
     afterDatasetsDraw: function (ch) {
       var ctx = ch.ctx, area = ch.chartArea;
       var pts = ch.getDatasetMeta(0).data;
-      var values = ch.data.datasets[0].data;
       var y0 = ch.scales.y.getPixelForValue(0);
       ctx.save();
       ctx.textAlign = 'center';
@@ -1102,16 +1099,11 @@
           x1: g.x1 - BAR_R - 2, x2: g.x2 + 2, y1: g.y - BAR_R - 2, y2: g.y + BAR_R + 2 });
       });
 
-      // 현금 소진: 선이 0원 아래로 내려가는 지점에 빨간 마커
-      if (ch.$stopped && pts.length) {
-        var last = pts.length - 1;
-        var rx = pts[last].x;
-        if (last > 0 && values[last] < 0 && values[last - 1] > 0) {
-          var v0 = values[last - 1], v1 = values[last];
-          rx = pts[last - 1].x + (pts[last].x - pts[last - 1].x) * (v0 / (v0 - v1));
-        }
+      // 현금 소진: 소진 달 점(0원)에 빨간 마커
+      var runoutIndex = ch.$stopped && pts.length ? pts.length - 1 : null;
+      if (runoutIndex !== null) {
         ctx.beginPath();
-        ctx.arc(rx, y0, RUNOUT_R, 0, Math.PI * 2);
+        ctx.arc(pts[runoutIndex].x, y0, RUNOUT_R, 0, Math.PI * 2);
         ctx.fillStyle = C.neg;
         ctx.fill();
         ctx.strokeStyle = C.white;
@@ -1124,7 +1116,10 @@
         var pt = pts[g.at];
         if (!pt) return;
         var text = g.items.map(function (it) { return it.n; }).join('·');
-        drawBadge(ctx, pt.x, Math.min(pt.y, area.bottom), MARK_R, text, groupColor(g), MARK_FONT, true);
+        var my = Math.min(pt.y, area.bottom);
+        // 현금 소진 마커와 같은 점이면 번호 마커를 바로 위로 올려서 둘 다 보이게 함
+        if (g.at === runoutIndex) my -= MARK_R + RUNOUT_R + 2;
+        drawBadge(ctx, pt.x, my, MARK_R, text, groupColor(g), MARK_FONT, true);
       });
       ctx.restore();
     }
@@ -1194,7 +1189,7 @@
     // 그래프 제목 아래 결론 한 줄
     noteEl.textContent = data.stopped
       ? monthText(runOutMonth) + '에 현금이 바닥나요.'
-      : months + '개월 뒤 잔고는 약 ' + won(last) + '이에요.';
+      : data.values.length + '개월 뒤 잔고는 약 ' + won(last) + '이에요.';
 
     chartItems = buildChartItems(data, runOutMonth);
     chartGroups = buildGroups();
@@ -1233,7 +1228,11 @@
           padding: 10,
           displayColors: false,
           callbacks: {
-            label: function (c) { return '잔고 ' + comma(c.raw) + '만원 (' + won(c.raw) + ')'; },
+            title: function (items) { return items.length ? items[0].label + ' 말' : ''; },
+            label: function (c) {
+              if (c.chart.$stopped && c.dataIndex === c.dataset.data.length - 1) return '잔고 0원 · 이 달에 현금 소진';
+              return '잔고 ' + comma(c.raw) + '만원 (' + won(c.raw) + ')';
+            },
             afterLabel: function (c) {
               return tooltipItemsAt(c.dataIndex).map(function (it) { return circled(it.n) + ' ' + it.text; });
             }
@@ -1267,7 +1266,7 @@
           backgroundColor: C.accentFill,
           fill: 'origin',
           tension: 0, // 직선으로 연결
-          // 0원 아래로 내려가는 부분은 0원 기준선에서 정확히 끊음
+          // 현금 소진 달은 0원 점에서 끝나므로 선이 0원 아래로 내려가지 않음
           clip: { left: 6, top: 6, right: 6, bottom: 0 },
           // 매달 점은 찍지 않고, 마지막 달에만 작은 점 (이벤트 달은 번호 마커, 현금 소진은 빨간 마커로 따로 그림)
           pointRadius: function (c) {
@@ -1397,7 +1396,7 @@
       // 3) 현금이 바닥나는 경우
       var runway = out.runway;
       var shown = runwayShown(runway);
-      runOutMonth = Math.floor(runway);
+      runOutMonth = runOutMonthOf(runway);
       var endText = monthText(runOutMonth);
 
       html += '<p class="sub">' + what + '</p>';
