@@ -150,7 +150,7 @@
   .adv.is-open .adv-chevron { transform: translateY(2px) rotate(-135deg); }
   .adv-body { padding: 2px 16px 18px; }
   .adv-body[hidden] { display: none; }
-  .adv-note { font-size: 13px; color: var(--muted); margin-top: 16px; }
+  .adv-section + .adv-section { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 18px; }
 
   /* 지출 변화 */
   .adv-section-title { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
@@ -199,7 +199,7 @@
   .chg-del:hover { color: var(--alert); border-color: #E9B4AA; }
   .chg-hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
   .chg-hint.up { color: #8F4506; }
-  .chg-hint.down { color: #17613A; }
+  .chg-hint.down, .chg-hint.in { color: #17613A; }
   .chg-add {
     width: 100%; margin-top: 10px; padding: 11px;
     border: 1.5px dashed #B9C4DA; border-radius: 12px;
@@ -293,6 +293,21 @@
   }
   .stat { background: var(--navy); padding: 16px; }
   .stats.one { grid-template-columns: 1fr; }
+
+  /* 투자 없이 → 투자 반영 시 */
+  .compare {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center; gap: 10px;
+    background: var(--navy);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-top: 22px;
+  }
+  .compare .k { font-size: 13px; color: #AFC0E4; }
+  .compare .v { font-size: 20px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .compare .after .v { color: var(--butter); }
+  .compare .arrow { font-size: 18px; color: #93A6D1; }
+  .compare + .stats { margin-top: 10px; }
   .stat .k { font-size: 13px; color: #AFC0E4; }
   .stat .v { font-size: 20px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
 
@@ -418,11 +433,18 @@
             예) <input id="hire-count" type="text" inputmode="numeric" data-advanced>
             체크박스/라디오는 체크 여부로, 나머지는 값이 비어 있지 않은지로 판단해요.
           -->
-          <h4 class="adv-section-title" id="chg-title">지출 변화</h4>
-          <p class="adv-section-sub">채용이나 일회성 비용처럼 앞으로 지출이 바뀌는 일을 넣어요. 마이너스 금액은 비용 절감으로 계산해요.</p>
-          <div class="chg-list" id="chg-list" role="list" aria-labelledby="chg-title"></div>
-          <button class="chg-add" id="chg-add" type="button">+ 추가</button>
-          <p class="adv-note">투자 유치 시나리오도 여기에 추가할 예정이에요.</p>
+          <div class="adv-section">
+            <h4 class="adv-section-title" id="chg-title">지출 변화</h4>
+            <p class="adv-section-sub">채용이나 일회성 비용처럼 앞으로 지출이 바뀌는 일을 넣어요. 마이너스 금액은 비용 절감으로 계산해요.</p>
+            <div class="chg-list" id="chg-list" role="list" aria-labelledby="chg-title"></div>
+            <button class="chg-add" id="chg-add" type="button">+ 추가</button>
+          </div>
+          <div class="adv-section">
+            <h4 class="adv-section-title" id="inv-title">투자 유치</h4>
+            <p class="adv-section-sub">투자금은 입력한 달에 한 번 잔고에 더해져요.</p>
+            <div class="chg-list" id="inv-list" role="list" aria-labelledby="inv-title"></div>
+            <button class="chg-add" id="inv-add" type="button">+ 추가</button>
+          </div>
         </div>
       </div>
 
@@ -443,7 +465,7 @@
   </div>
 </main>
 
-<footer>계산 결과는 월 지출이 입력한 지출 변화대로만 바뀌고 매출은 입력한 성장률대로 변한다고 가정한 추정치예요.</footer>
+<footer>계산 결과는 월 지출이 입력한 지출 변화대로만 바뀌고, 매출은 입력한 성장률대로 변하며, 투자금은 입력한 달에 들어온다고 가정한 추정치예요.</footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
@@ -504,6 +526,19 @@
       if (changeActive(c, k)) e += c.amount;
     }
     return Math.max(0, e);
+  }
+
+  // ===== 투자 유치 =====
+  // 계산할 때마다 입력칸에서 읽어 채움: [{ name, month, amount }]
+  var investments = [];
+
+  // k개월 뒤(0 = 이번 달) 월초에 들어오는 투자금 합계
+  function investAt(k) {
+    var sum = 0;
+    for (var i = 0; i < investments.length; i++) {
+      if (investments[i].month === k) sum += investments[i].amount;
+    }
+    return sum;
   }
 
   // 마이너스 허용 숫자 읽기
@@ -580,38 +615,64 @@
   }
 
   // 한 달씩 잔고 계산
-  // 이번 달(1개월 차)은 지금 매출 그대로, 다음 달부터 성장률 반영
-  function simulate(cash, expense, revenue, g) {
+  // 이번 달(0개월 차)은 지금 매출 그대로, 다음 달부터 성장률 반영
+  // useInvest가 true면 투자금이 들어오는 달 월초에 잔고에 더함
+  function simulate(cash, expense, revenue, g, useInvest) {
     var balance = cash;
     var rev = revenue;
-    var minBalance = cash;
+    var minBalance = null;
     var breakEven = null;
-    for (var m = 1; m <= MAX_SIM_MONTHS; m++) {
-      var burnM = expenseAt(expense, m - 1) - rev;
-      var burnS = expenseAt(expense, m - 1, false) - rev; // 일회성 지출 제외
-      if (burnS <= 0 && breakEven === null) breakEven = m;
+    for (var k = 0; k < MAX_SIM_MONTHS; k++) {
+      if (useInvest) balance += investAt(k);
+      // 지난달 말에 잔고가 딱 0이 된 경우: 그 달에 바닥난 것으로 봄
+      if (k > 0 && balance <= 0) return { runway: k, minBalance: 0, breakEven: null };
+      if (minBalance === null) minBalance = balance;
+
+      var burnM = expenseAt(expense, k) - rev;
+      var burnS = expenseAt(expense, k, false) - rev; // 일회성 지출 제외
+      if (burnS <= 0 && breakEven === null) breakEven = k + 1;
       if (burnS > 0) breakEven = null; // 다시 적자가 되면 흑자 전환 시점을 다시 찾음
-      if (burnM > 0 && balance - burnM <= 0) {
+      if (burnM > 0 && balance - burnM < 0) {
         // 이 달 안에 현금이 바닥남: 소수점 개월까지 계산
-        return { runway: (m - 1) + Math.max(0, balance) / burnM, minBalance: 0, breakEven: null };
+        return { runway: k + Math.max(0, balance) / burnM, minBalance: 0, breakEven: null };
       }
       balance -= burnM;
       if (balance < minBalance) minBalance = balance;
       // 성장률이 0 이상이고, 더 바뀔 지출 변화가 없고, 이미 흑자면 이후로도 현금이 줄지 않음
-      if (burnM <= 0 && g >= 0 && m - 1 >= lastChangeMonth) break;
+      if (burnM <= 0 && g >= 0 && k >= lastChangeMonth) break;
       rev = rev * (1 + g / 100);
     }
     return { runway: null, minBalance: minBalance, breakEven: breakEven };
   }
 
-  // 12개월 뒤 잔고
+  // n개월 뒤 잔고 (투자 포함)
   function balanceAfter(months, cash, expense, revenue, g) {
     var balance = cash, rev = revenue;
     for (var m = 0; m < months; m++) {
+      balance += investAt(m);
       balance -= expenseAt(expense, m) - rev;
       rev = rev * (1 + g / 100);
     }
     return balance;
+  }
+
+  // 런웨이 결과 한 가지 계산
+  // kind: 'safe' 현금이 줄지 않음 / 'empty' 현금 없음 / 'runout' 바닥남 / 'survive' 바닥나지 않음
+  function runwayOutcome(cash, expense, revenue, g, useInvest) {
+    if (neverBurns(expense, revenue, g)) return { kind: 'safe' };
+    var withInvest = useInvest && investments.length > 0;
+    if (cash + (useInvest ? investAt(0) : 0) <= 0) return { kind: 'empty', runway: 0 };
+    if (g === 0 && expenseChanges.length === 0 && !withInvest) {
+      return { kind: 'runout', runway: cash / (expense - revenue) }; // 기존과 똑같은 계산
+    }
+    var sim = simulate(cash, expense, revenue, g, useInvest);
+    if (sim.runway !== null) return { kind: 'runout', runway: sim.runway, sim: sim };
+    return { kind: 'survive', sim: sim };
+  }
+
+  // 런웨이 숫자 표시 (결과 카드와 비교 칸이 같은 규칙)
+  function runwayShown(runway) {
+    return runway >= 100 ? comma(runway) : (Math.floor(runway * 10) / 10).toFixed(1).replace(/\.0$/, '');
   }
 
   // 앞으로 한 번도 적자가 되지 않는지 (매출이 줄지 않을 때만)
@@ -687,27 +748,55 @@
   }
 
   // 결과 카드의 가정 문구
-  function assumptionText(g, hasChanges) {
+  function assumptionText(g, hasChanges, hasInvest) {
     var rate = '';
     if (g > 0) rate = '매출이 매달 ' + rateText(g) + '씩 늘어난다고';
     else if (g < 0) rate = '매출이 매달 ' + rateText(-g) + '씩 줄어든다고';
-    if (!hasChanges) return rate ? rate + ' 보면' : '지금 속도로 현금을 쓰면';
-    return rate ? '지출 변화를 반영하고 ' + rate + ' 보면' : '지출 변화를 반영하면';
+    var what = hasChanges && hasInvest ? '지출 변화와 투자' : hasChanges ? '지출 변화' : hasInvest ? '투자' : '';
+    if (!what) return rate ? rate + ' 보면' : '지금 속도로 현금을 쓰면';
+    return rate ? what + '를 반영하고 ' + rate + ' 보면' : what + '를 반영하면';
+  }
+
+  // "투자 없이 ○개월 → 투자 반영 시 ○개월"
+  function outcomeText(o) {
+    if (o.kind === 'safe') return '줄지 않아요';
+    if (o.kind === 'survive') return '바닥나지 않아요';
+    return runwayShown(o.runway) + '개월';
+  }
+  function compareBlock(base, withInv) {
+    return '<div class="compare" role="group" aria-label="투자 반영 전후 런웨이">' +
+      '<div><div class="k">투자 없이</div><div class="v">' + outcomeText(base) + '</div></div>' +
+      '<div class="arrow" aria-hidden="true">→</div>' +
+      '<div class="after"><div class="k">투자 반영 시</div><div class="v">' + outcomeText(withInv) + '</div></div>' +
+      '</div>';
+  }
+
+  // 현금 소진 달(runOutMonth)보다 늦게 들어오는 투자가 있으면 빨간 경고
+  function lateInvestWarning(runOutMonth, extra) {
+    var late = investments.filter(function (v) { return v.month > runOutMonth; })
+      .sort(function (a, b) { return a.month - b.month; });
+    if (!late.length) return '';
+    var list = late.map(function (v) { return v.name + ' ' + monthText(v.month); }).join(', ');
+    return statusBox('red', '투자가 들어오기 전에 현금이 바닥나요.',
+      '현금 소진은 ' + monthText(runOutMonth) + ', 투자 입금은 ' + list + '이에요. 투자 시점을 앞당기거나 그때까지 버틸 방법을 찾아야 해요.' + (extra || ''));
   }
 
   // ===== 월별 잔고 그래프 =====
   var CHART_MONTHS = 36;
   var chart = null;
 
-  // k개월 뒤 월초 잔고 목록 (0 = 지금). 잔고가 0 이하가 되면 그 달까지만 담음
-  function balanceSeries(cash, expense, revenue, g) {
+  // k개월 뒤 월초 잔고 목록 (0 = 지금)
+  // runOutMonth는 결과 카드가 계산한 현금 소진 달. 그래프도 이 달을 기준으로 끊어서 두 곳의 월이 항상 같음
+  function balanceSeries(cash, expense, revenue, g, runOutMonth) {
     var labels = [], values = [];
     var balance = cash, rev = revenue;
     var breakEven = null;
-    var runOut = null; // 현금이 바닥나는 달 (결과 카드와 같은 기준)
+    var stopped = false;
     var prevBurning = null;
     for (var k = 0; k <= CHART_MONTHS; k++) {
       labels.push(monthText(k));
+      // 현금이 바닥난 뒤에 들어오는 투자는 반영하지 않음
+      if (runOutMonth === null || k <= runOutMonth) balance += investAt(k);
       values.push(Math.round(balance));
       var burnK = expenseAt(expense, k) - rev;
       var burnS = expenseAt(expense, k, false) - rev; // 일회성 지출 제외
@@ -715,15 +804,15 @@
       if (prevBurning === true && burnS <= 0 && balance > 0) breakEven = k;
       if (burnS > 0 && breakEven !== null) breakEven = null; // 다시 적자면 표시하지 않음
       prevBurning = burnS > 0;
-      if (balance <= 0 && (k > 0 || burnK > 0)) {
-        // 월초 잔고가 딱 0이면 그 달, 0 아래면 바로 전 달 중에 바닥난 것
-        runOut = (k === 0 || balance === 0) ? k : k - 1;
+      // 소진 달의 잔고가 이미 0 이하면 그 달까지, 아니면 다음 달(0 아래로 내려간 점)까지 그림
+      if (runOutMonth !== null && (k === runOutMonth + 1 || (k === runOutMonth && balance <= 0))) {
+        stopped = true;
         break;
       }
       balance -= burnK;
       rev = rev * (1 + g / 100);
     }
-    return { labels: labels, values: values, breakEven: breakEven, runOut: runOut };
+    return { labels: labels, values: values, breakEven: breakEven, stopped: stopped };
   }
 
   var BREAK_EVEN_COLOR = '#1B7440';
@@ -731,44 +820,83 @@
 
   var CHANGE_COLOR = '#B8860B';
   var CHANGE_TEXT = '#6B4A00';
-  var chartChanges = []; // 그래프에 표시할 지출 변화: [{ index, names, lines }]
+  var CHANGE_BAND = 'rgba(214, 160, 20, 0.16)';
+  var INVEST_COLOR = '#1F9D55';
+  var INVEST_TEXT = '#17613A';
 
-  function changeAt(index) {
-    for (var i = 0; i < chartChanges.length; i++) if (chartChanges[i].index === index) return chartChanges[i];
+  var chartMarks = []; // 점선 표시: [{ index, kind: 'change' | 'invest', names }]
+  var chartBands = []; // 기간 한정 지출 띠: [{ from, to, name }]
+  var chartTips = {};  // 달 위치별 툴팁 추가 줄
+
+  function markAt(index, kind) {
+    for (var i = 0; i < chartMarks.length; i++) {
+      var mk = chartMarks[i];
+      if (mk.index === index && (!kind || mk.kind === kind)) return mk;
+    }
     return null;
+  }
+  function addTip(index, line) {
+    (chartTips[index] = chartTips[index] || []).push(line);
   }
 
   function pointColor(c) {
     if (c.dataIndex === chartBreakEven) return BREAK_EVEN_COLOR;
-    if (changeAt(c.dataIndex)) return CHANGE_COLOR;
+    if (markAt(c.dataIndex, 'invest')) return INVEST_COLOR;
+    if (markAt(c.dataIndex, 'change')) return CHANGE_COLOR;
     return c.raw <= 0 ? '#C8412E' : '#1D418C';
   }
   function pointSize(c) {
     if (c.dataIndex === chartBreakEven) return 6;
-    return changeAt(c.dataIndex) ? 5 : 2.5;
+    return markAt(c.dataIndex) ? 5 : 2.5;
   }
 
   function shorten(text, max) {
     return text.length > max ? text.slice(0, max - 1) + '…' : text;
   }
 
-  // 지출 변화가 시작되는 달에 노란 점선과 이름표를 그리는 플러그인
+  var LABEL_FONT = '700 12px Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+
+  // 기간 한정 지출은 옅은 노란 띠로, 선 아래에 먼저 그림
+  function bandRange(ch, band) {
+    var pts = ch.getDatasetMeta(0).data;
+    var area = ch.chartArea;
+    var last = pts.length - 1;
+    if (band.from > last || !pts[band.from]) return null;
+    var x1 = pts[band.from].x;
+    var x2 = band.to <= last ? pts[band.to].x : (ch.$stopped ? pts[last].x : area.right);
+    if (x2 - x1 < 6) x2 = Math.min(area.right, x1 + 6);
+    return { x1: x1, x2: x2 };
+  }
+
+  // 지출 변화(노란 점선/띠)와 투자(초록 점선)에 이름표를 그리는 플러그인
   // 이름표는 그래프 아래쪽에 두고, 겹치면 한 줄씩 위로 쌓음
-  var changeMarkerPlugin = {
+  var markerPlugin = {
     id: 'changeMarkers',
+    beforeDatasetsDraw: function (ch) {
+      if (!chartBands.length) return;
+      var ctx = ch.ctx, area = ch.chartArea;
+      ctx.save();
+      ctx.fillStyle = CHANGE_BAND;
+      chartBands.forEach(function (b) {
+        var r = bandRange(ch, b);
+        if (r) ctx.fillRect(r.x1, area.top, r.x2 - r.x1, area.bottom - area.top);
+      });
+      ctx.restore();
+    },
     afterDatasetsDraw: function (ch) {
-      if (!chartChanges.length) return;
-      var meta = ch.getDatasetMeta(0);
+      if (!chartMarks.length && !chartBands.length) return;
+      var pts = ch.getDatasetMeta(0).data;
       var ctx = ch.ctx, area = ch.chartArea;
       var h = 20, gap = 4, maxRows = 3;
-      var rowRight = [];
+      var labels = [];
       ctx.save();
-      ctx.font = '700 12px Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
-      chartChanges.forEach(function (cg) {
-        var pt = meta.data[cg.index];
-        if (!pt) return;
+      ctx.font = LABEL_FONT;
 
-        ctx.strokeStyle = CHANGE_COLOR;
+      chartMarks.forEach(function (mk) {
+        var pt = pts[mk.index];
+        if (!pt) return;
+        var color = mk.kind === 'invest' ? INVEST_COLOR : CHANGE_COLOR;
+        ctx.strokeStyle = color;
         ctx.lineWidth = 1.5;
         ctx.setLineDash([3, 4]);
         ctx.beginPath();
@@ -776,26 +904,36 @@
         ctx.lineTo(pt.x, area.bottom);
         ctx.stroke();
         ctx.setLineDash([]);
-
-        var text = shorten(cg.names.join(', '), 14);
+        var text = shorten(mk.names.join(', '), 14);
         var w = ctx.measureText(text).width + 14;
-        var x = Math.max(area.left, Math.min(area.right - w, pt.x - w / 2));
-        var row = 0;
-        while (row < maxRows && rowRight[row] !== undefined && x < rowRight[row] + gap) row++;
-        if (row >= maxRows) row = maxRows - 1;
-        rowRight[row] = x + w;
-        var y = area.bottom - 6 - h - row * (h + gap);
+        labels.push({ x: Math.max(area.left, Math.min(area.right - w, pt.x - w / 2)), w: w, text: text, kind: mk.kind });
+      });
+      chartBands.forEach(function (b) {
+        var r = bandRange(ch, b);
+        if (!r) return;
+        var text = shorten(b.name, 14);
+        var w = ctx.measureText(text).width + 14;
+        labels.push({ x: Math.max(area.left, Math.min(area.right - w, r.x1 + 2)), w: w, text: text, kind: 'change' });
+      });
 
+      labels.sort(function (a, b) { return a.x - b.x; });
+      var rowRight = [];
+      labels.forEach(function (lb) {
+        var row = 0;
+        while (row < maxRows && rowRight[row] !== undefined && lb.x < rowRight[row] + gap) row++;
+        if (row >= maxRows) row = maxRows - 1;
+        rowRight[row] = lb.x + lb.w;
+        var y = area.bottom - 6 - h - row * (h + gap);
         ctx.fillStyle = '#FFFFFF';
-        ctx.strokeStyle = CHANGE_COLOR;
+        ctx.strokeStyle = lb.kind === 'invest' ? INVEST_COLOR : CHANGE_COLOR;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(x, y, w, h, 6); else ctx.rect(x, y, w, h);
+        if (ctx.roundRect) ctx.roundRect(lb.x, y, lb.w, h, 6); else ctx.rect(lb.x, y, lb.w, h);
         ctx.fill();
         ctx.stroke();
-        ctx.fillStyle = CHANGE_TEXT;
+        ctx.fillStyle = lb.kind === 'invest' ? INVEST_TEXT : CHANGE_TEXT;
         ctx.textBaseline = 'middle';
-        ctx.fillText(text, x + 7, y + h / 2 + 1);
+        ctx.fillText(lb.text, lb.x + 7, y + h / 2 + 1);
       });
       ctx.restore();
     }
@@ -820,7 +958,7 @@
       ctx.setLineDash([]);
 
       var text = '흑자 전환';
-      ctx.font = '700 12px Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+      ctx.font = LABEL_FONT;
       var w = ctx.measureText(text).width + 14, h = 20;
       var x = Math.max(area.left, Math.min(area.right - w, pt.x - w / 2));
       var y = area.top;
@@ -835,7 +973,12 @@
     }
   };
 
-  function updateChart(cash, expense, revenue, g) {
+  function moneyShort(amount) {
+    return (amount > 0 ? '+' : '-') + comma(Math.abs(amount)) + '만원';
+  }
+
+  // runOutMonth: 결과 카드와 같은 현금 소진 달 (없으면 null)
+  function updateChart(cash, expense, revenue, g, runOutMonth) {
     var box = document.querySelector('.chart-box');
     var noteEl = document.getElementById('chart-note');
     if (typeof Chart === 'undefined') {
@@ -843,37 +986,61 @@
       return;
     }
 
-    var data = balanceSeries(cash, expense, revenue, g);
+    var data = balanceSeries(cash, expense, revenue, g, runOutMonth);
     var months = data.values.length - 1;
     var last = data.values[months];
+    var note;
 
-    if (data.runOut !== null) {
-      noteEl.textContent = data.labels[data.runOut] + '에 현금이 바닥나서 ' +
-        (data.runOut < months ? data.labels[months] + ' 이후는' : '그 뒤는') + ' 그리지 않았어요.';
+    if (data.stopped) {
+      note = monthText(runOutMonth) + '에 현금이 바닥나서 ' +
+        (runOutMonth < months ? data.labels[months] + ' 이후는' : '그 뒤는') + ' 그리지 않았어요.';
     } else {
-      noteEl.textContent = months + '개월 뒤인 ' + data.labels[months] + ' 잔고는 약 ' + won(last) + '이에요.';
-    }
-    chartBreakEven = data.breakEven;
-    if (chartBreakEven !== null) {
-      noteEl.textContent += ' 초록 점선은 흑자 전환 예상 달(' + data.labels[chartBreakEven] + ')이에요.';
+      note = months + '개월 뒤인 ' + data.labels[months] + ' 잔고는 약 ' + won(last) + '이에요.';
+      if (runOutMonth !== null) note += ' 현금은 ' + monthText(runOutMonth) + '에 바닥나요.';
     }
 
-    // 그려진 기간 안에서 시작하는 지출 변화를 달별로 묶음
-    chartChanges = [];
+    // 그려진 기간 안의 지출 변화와 투자 표시
+    chartMarks = [];
+    chartBands = [];
+    chartTips = {};
     expenseChanges.forEach(function (c) {
       if (c.start > months) return;
-      var cg = changeAt(c.start);
-      if (!cg) { cg = { index: c.start, names: [], lines: [] }; chartChanges.push(cg); }
-      cg.names.push(c.name);
       var when = c.type === 'once' ? ' (한 번만)' : c.type === 'limited' ? ' (' + c.duration + '개월 동안)' : ' (매달)';
-      cg.lines.push(c.name + ' ' + (c.amount > 0 ? '+' : '-') + comma(Math.abs(c.amount)) + '만원' + when);
+      addTip(c.start, '지출 변화: ' + c.name + ' ' + moneyShort(c.amount) + when);
+      if (c.type === 'limited') {
+        chartBands.push({ from: c.start, to: c.start + c.duration, name: c.name });
+        for (var k = c.start + 1; k < c.start + c.duration && k <= months; k++) {
+          addTip(k, '지출 변화: ' + c.name + ' (' + (k - c.start + 1) + '/' + c.duration + '개월째)');
+        }
+        return;
+      }
+      var mk = markAt(c.start, 'change');
+      if (!mk) { mk = { index: c.start, kind: 'change', names: [] }; chartMarks.push(mk); }
+      mk.names.push(c.name);
     });
-    chartChanges.sort(function (a, b) { return a.index - b.index; });
-    if (chartChanges.length) {
-      noteEl.textContent += ' 노란 점선은 지출 변화가 시작되는 달이에요.';
+    investments.forEach(function (v) {
+      if (v.month > months || (runOutMonth !== null && v.month > runOutMonth)) return;
+      addTip(v.month, '투자: ' + v.name + ' ' + moneyShort(v.amount));
+      var mk = markAt(v.month, 'invest');
+      if (!mk) { mk = { index: v.month, kind: 'invest', names: [] }; chartMarks.push(mk); }
+      mk.names.push(v.name + ' +' + won(v.amount));
+    });
+    chartMarks.sort(function (a, b) { return a.index - b.index; });
+    var hasInvestMark = chartMarks.some(function (mk) { return mk.kind === 'invest'; });
+
+    chartBreakEven = data.breakEven;
+    if (chartBreakEven !== null) {
+      note += hasInvestMark
+        ? ' ‘흑자 전환’ 표시는 흑자 전환 예상 달(' + data.labels[chartBreakEven] + ')이에요.'
+        : ' 초록 점선은 흑자 전환 예상 달(' + data.labels[chartBreakEven] + ')이에요.';
     }
+    if (chartMarks.some(function (mk) { return mk.kind === 'change'; })) note += ' 노란 점선은 지출 변화가 시작되는 달이에요.';
+    if (chartBands.length) note += ' 노란 띠는 기간 한정 지출이 적용되는 기간이에요.';
+    if (hasInvestMark) note += ' 투자 이름이 붙은 초록 점선은 투자가 들어오는 달이에요.';
+    noteEl.textContent = note;
 
     if (chart) {
+      chart.$stopped = data.stopped;
       chart.data.labels = data.labels;
       chart.data.datasets[0].data = data.values;
       chart.update();
@@ -892,13 +1059,14 @@
           backgroundColor: 'rgba(255, 229, 153, 0.45)',
           fill: 'origin',
           tension: 0.25,
+          cubicInterpolationMode: 'monotone', // 투자금이 들어와 잔고가 뛰어도 곡선이 출렁이지 않게
           pointRadius: pointSize,
           pointHoverRadius: 6,
           pointBackgroundColor: pointColor,
           pointBorderColor: pointColor
         }]
       },
-      plugins: [changeMarkerPlugin, breakEvenPlugin],
+      plugins: [markerPlugin, breakEvenPlugin],
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -916,9 +1084,7 @@
               afterLabel: function (c) {
                 var lines = [];
                 if (c.dataIndex === chartBreakEven) lines.push('흑자 전환 예상 달');
-                var cg = changeAt(c.dataIndex);
-                if (cg) cg.lines.forEach(function (l) { lines.push('지출 변화: ' + l); });
-                return lines;
+                return lines.concat(chartTips[c.dataIndex] || []);
               }
             }
           }
@@ -941,6 +1107,7 @@
         }
       }
     });
+    chart.$stopped = data.stopped;
   }
 
   function calc() {
@@ -950,16 +1117,29 @@
     var g = readRate(els.growth);
     expenseChanges = readChanges();
     lastChangeMonth = expenseChanges.reduce(function (mx, c) { return Math.max(mx, changeSettleMonth(c)); }, 0);
-    var hasChanges = expenseChanges.length > 0;
-    var burn = expenseAt(expense, 0) - revenue;
+    investments = readInvestments();
     updateHints(cash, expense, revenue, g);
-    updateChart(cash, expense, revenue, g);
+
+    var runOutMonth = renderResult(cash, expense, revenue, g);
+    updateChart(cash, expense, revenue, g, runOutMonth);
+  }
+
+  // 결과 카드를 그리고, 현금 소진 달(없으면 null)을 돌려줌. 그래프도 이 값을 그대로 씀
+  function renderResult(cash, expense, revenue, g) {
+    var hasChanges = expenseChanges.length > 0;
+    var hasInvest = investments.length > 0;
+    var burn = expenseAt(expense, 0) - revenue;
+    var out = runwayOutcome(cash, expense, revenue, g, true);
+    var base = hasInvest ? runwayOutcome(cash, expense, revenue, g, false) : out;
+    var compare = hasInvest ? compareBlock(base, out) : '';
 
     var burnLabel = (g === 0 && !hasChanges) ? '월 순소진액' : '이번 달 순소진액';
+    var what = assumptionText(g, hasChanges, hasInvest);
     var html = '<h2>계산 결과</h2>';
+    var runOutMonth = null;
 
-    // 1) 현금이 줄지 않는 경우 (앞으로 한 번도 적자가 되지 않음)
-    if (neverBurns(expense, revenue, g)) {
+    if (out.kind === 'safe') {
+      // 1) 현금이 줄지 않는 경우 (앞으로 한 번도 적자가 되지 않음)
       var profit = -burn;
       var after12 = balanceAfter(12, cash, expense, revenue, g);
       html += '<p class="sub">매출이 지출보다 크거나 같아요.</p>';
@@ -970,8 +1150,8 @@
         '<div class="stat"><div class="k">이번 달 남는 돈</div><div class="v">' + won(profit) + '</div></div>' +
         '</div>';
       var safeNote;
-      if (hasChanges && g === 0 && Math.round(after12) !== cash) {
-        safeNote = '지출 변화를 반영하면 1년 뒤엔 약 ' + won(after12) + '이 돼요.';
+      if ((hasChanges || hasInvest) && g === 0 && Math.round(after12) !== cash) {
+        safeNote = what + ' 1년 뒤엔 약 ' + won(after12) + '이 돼요.';
       } else if (profit > 0 || g > 0) {
         safeNote = (g > 0
           ? '매출이 매달 ' + rateText(g) + '씩 늘어나면 '
@@ -981,92 +1161,86 @@
         safeNote = '매출과 지출이 딱 같아요. 지출이 조금만 늘어도 현금이 줄기 시작하니 살펴봐 주세요.';
       }
       html += statusBox('green', '여유가 있어요.', safeNote);
-      els.result.innerHTML = html;
-      return;
-    }
 
-    // 2) 보유 현금이 없는 경우
-    if (cash <= 0) {
+    } else if (out.kind === 'empty') {
+      // 2) 보유 현금이 없는 경우
+      runOutMonth = 0;
       html += '<p class="sub">보유 현금을 입력해 주세요.</p>';
       html += '<div class="runway lv-red"><span class="num">0</span><span class="label">개월</span></div>';
       html += '<div class="stats">' +
         '<div class="stat"><div class="k">' + burnLabel + '</div><div class="v">' + won(Math.max(burn, 0)) + '</div></div>' +
         '<div class="stat"><div class="k">런웨이</div><div class="v">0개월</div></div>' +
         '</div>';
+      html += lateInvestWarning(0);
       html += statusBox('red', '지금 바로 투자 유치나 비용 절감이 필요해요.',
         (burn > 0 ? '지금은 매달 ' + won(burn) + '이 부족해요. ' : '') + '보유 현금을 넣으면 버틸 수 있는 기간을 계산해요.');
-      els.result.innerHTML = html;
-      return;
-    }
 
-    // 3) 런웨이 계산
-    var runway, sim = null;
-    if (g === 0 && !hasChanges) {
-      runway = cash / burn; // 기존과 똑같은 계산
+    } else if (out.kind === 'survive') {
+      var sim = out.sim;
+      html += '<p class="sub">' + what + '</p>';
+      if (sim.breakEven === null) {
+        // 50년 동안 계산해도 현금이 남는 경우
+        html += '<div class="safe-big">50년 넘게 버틸 수 있어요</div>';
+        html += compare;
+        html += '<div class="stats one">' +
+          '<div class="stat"><div class="k">' + burnLabel + '</div><div class="v">' + won(Math.max(burn, 0)) + '</div></div>' +
+          '</div>';
+        html += statusBox('green', '여유가 있어요.', '현금이 가장 적을 때도 약 ' + won(sim.minBalance) + '이 남아요.');
+      } else if (burn <= 0 || sim.breakEven === 1) {
+        // 지금은 흑자인데 일회성/기간 한정 지출 등으로 잠깐 현금이 줄어드는 경우
+        html += '<div class="safe-big">현금이 바닥나지 않아요</div>';
+        html += '<p class="zero-date">지출 변화로 잠깐 현금이 줄어도 버틸 수 있어요.</p>';
+        html += compare;
+        html += '<div class="stats">' +
+          '<div class="stat"><div class="k">' + burnLabel + '</div><div class="v">' + won(Math.max(burn, 0)) + '</div></div>' +
+          '<div class="stat"><div class="k">현금이 가장 적을 때</div><div class="v">' + won(sim.minBalance) + '</div></div>' +
+          '</div>';
+        html += statusBox('green', '여유가 있어요.',
+          '지출 변화가 있어도 현금이 가장 적을 때 약 ' + won(sim.minBalance) + '이 남아요. 일정이나 금액이 달라지면 결과도 달라지니 함께 확인해 보세요.');
+      } else {
+        // 성장이나 비용 절감(또는 투자) 덕분에 현금이 바닥나기 전에 흑자 전환
+        var beText = monthText(sim.breakEven - 1);
+        html += '<div class="safe-big">현금이 바닥나지 않아요</div>';
+        html += '<p class="zero-date"><strong>' + beText + '</strong>쯤 매출이 지출을 넘어서요.</p>';
+        html += compare;
+        html += '<div class="stats">' +
+          '<div class="stat"><div class="k">' + burnLabel + '</div><div class="v">' + won(Math.max(burn, 0)) + '</div></div>' +
+          '<div class="stat"><div class="k">흑자 전환 예상</div><div class="v">' + beText + '</div></div>' +
+          '</div>';
+        html += statusBox('green', beText + ' 흑자 전환 예상이에요.',
+          '그 전까지 현금이 가장 적을 때도 약 ' + won(sim.minBalance) +
+          '이 남아요. ' + (g !== 0
+            ? '성장률이 예상보다 낮으면 결과가 달라지니 0%일 때도 함께 확인해 보세요.'
+            : hasChanges
+              ? '지출 변화 일정이 달라지면 결과도 달라지니 함께 확인해 보세요.'
+              : '투자 일정이 달라지면 결과도 달라지니 함께 확인해 보세요.'));
+      }
+
     } else {
-      sim = simulate(cash, expense, revenue, g);
-      runway = sim.runway;
-    }
+      // 3) 현금이 바닥나는 경우
+      var runway = out.runway;
+      var shown = runwayShown(runway);
+      runOutMonth = Math.floor(runway);
+      var endText = monthText(runOutMonth);
 
-    // 3-a) 성장 덕분에 현금이 바닥나기 전에 흑자 전환
-    if (runway === null && sim.breakEven === null) {
-      // 50년 동안 계산해도 현금이 남는 경우
-      html += '<p class="sub">' + assumptionText(g, hasChanges) + '</p>';
-      html += '<div class="safe-big">50년 넘게 버틸 수 있어요</div>';
+      html += '<p class="sub">' + what + '</p>';
+      html += '<div class="runway lv-' + levelOf(runway) + '"><span class="num">' + shown + '</span><span class="label">개월</span></div>';
+      html += '<p class="zero-date"><strong>' + endText + '</strong>쯤 현금이 바닥나요.</p>';
+      html += runwayBar(runway, shown, endText);
+      html += compare;
       html += '<div class="stats one">' +
         '<div class="stat"><div class="k">' + burnLabel + '</div><div class="v">' + won(Math.max(burn, 0)) + '</div></div>' +
         '</div>';
-      html += statusBox('green', '여유가 있어요.', '현금이 가장 적을 때도 약 ' + won(sim.minBalance) + '이 남아요.');
-      els.result.innerHTML = html;
-      return;
+      // 늦게 들어오는 투자가 있으면 빨간 경고. 이때 초록 '여유가 있어요'는 헷갈리니 준비 시점만 경고에 덧붙임
+      var green = levelOf(runway) === 'green';
+      var warn = lateInvestWarning(runOutMonth,
+        green ? ' 다음 투자 준비는 ' + monthText(runOutMonth - 6) + '까지 시작하세요.' : '');
+      html += warn;
+      if (!warn || !green) html += runwayStatus(runway);
     }
-    if (runway === null && (burn <= 0 || sim.breakEven === 1)) {
-      // 지금은 흑자인데 일회성/기간 한정 지출 등으로 잠깐 현금이 줄어드는 경우
-      html += '<p class="sub">' + assumptionText(g, hasChanges) + '</p>';
-      html += '<div class="safe-big">현금이 바닥나지 않아요</div>';
-      html += '<p class="zero-date">지출 변화로 잠깐 현금이 줄어도 버틸 수 있어요.</p>';
-      html += '<div class="stats">' +
-        '<div class="stat"><div class="k">' + burnLabel + '</div><div class="v">' + won(Math.max(burn, 0)) + '</div></div>' +
-        '<div class="stat"><div class="k">현금이 가장 적을 때</div><div class="v">' + won(sim.minBalance) + '</div></div>' +
-        '</div>';
-      html += statusBox('green', '여유가 있어요.',
-        '지출 변화가 있어도 현금이 가장 적을 때 약 ' + won(sim.minBalance) + '이 남아요. 일정이나 금액이 달라지면 결과도 달라지니 함께 확인해 보세요.');
-      els.result.innerHTML = html;
-      return;
-    }
-    if (runway === null) {
-      html += '<p class="sub">' + assumptionText(g, hasChanges) + '</p>';
-      html += '<div class="safe-big">현금이 바닥나지 않아요</div>';
-      html += '<p class="zero-date"><strong>' + monthText(sim.breakEven - 1) + '</strong>쯤 매출이 지출을 넘어서요.</p>';
-      html += '<div class="stats">' +
-        '<div class="stat"><div class="k">' + burnLabel + '</div><div class="v">' + won(Math.max(burn, 0)) + '</div></div>' +
-        '<div class="stat"><div class="k">흑자 전환 예상</div><div class="v">' + monthText(sim.breakEven - 1) + '</div></div>' +
-        '</div>';
-      html += statusBox('green', monthText(sim.breakEven - 1) + ' 흑자 전환 예상이에요.',
-        '그 전까지 현금이 가장 적을 때도 약 ' + won(sim.minBalance) +
-        '이 남아요. ' + (g !== 0
-          ? '성장률이 예상보다 낮으면 결과가 달라지니 0%일 때도 함께 확인해 보세요.'
-          : '지출 변화 일정이 달라지면 결과도 달라지니 함께 확인해 보세요.'));
-      els.result.innerHTML = html;
-      return;
-    }
-
-    // 3-b) 현금이 바닥나는 경우
-    var shown = runway >= 100 ? comma(runway) : (Math.floor(runway * 10) / 10).toFixed(1).replace(/\.0$/, '');
-    var endText = monthText(Math.floor(runway));
-
-    var subText = assumptionText(g, hasChanges);
-
-    html += '<p class="sub">' + subText + '</p>';
-    html += '<div class="runway lv-' + levelOf(runway) + '"><span class="num">' + shown + '</span><span class="label">개월</span></div>';
-    html += '<p class="zero-date"><strong>' + endText + '</strong>쯤 현금이 바닥나요.</p>';
-    html += runwayBar(runway, shown, endText);
-    html += '<div class="stats one">' +
-      '<div class="stat"><div class="k">' + burnLabel + '</div><div class="v">' + won(Math.max(burn, 0)) + '</div></div>' +
-      '</div>';
-    html += runwayStatus(runway);
 
     els.result.innerHTML = html;
+    return runOutMonth;
   }
 
   // ===== 고급 설정 (접기/펼치기 + '적용 중' 표시) =====
@@ -1089,10 +1263,12 @@
   }
   var changeList = document.getElementById('chg-list');
   var changeAddBtn = document.getElementById('chg-add');
+  var investList = document.getElementById('inv-list');
+  var investAddBtn = document.getElementById('inv-add');
 
   // 지출 변화 항목이 하나라도 있거나, data-advanced 입력칸에 값이 있으면 적용 중
   function isAdvancedActive() {
-    if (changeList.children.length > 0) return true;
+    if (changeList.children.length > 0 || investList.children.length > 0) return true;
     return advancedInputs().some(function (el) {
       if (el.type === 'checkbox' || el.type === 'radio') return el.checked;
       return String(el.value).trim() !== '';
@@ -1103,6 +1279,7 @@
   }
   function clearAdvanced() {
     changeList.innerHTML = '';
+    investList.innerHTML = '';
     advancedInputs().forEach(function (el) {
       if (el.type === 'checkbox' || el.type === 'radio') el.checked = el.defaultChecked;
       else el.value = '';
@@ -1288,6 +1465,109 @@
   changeList.addEventListener('focusin', function (e) {
     var t = e.target;
     if (t.classList.contains('chg-start') || t.classList.contains('chg-amount') || t.classList.contains('chg-duration')) t.select();
+  });
+
+  // ----- 투자 유치 항목 -----
+  var investSeq = 0;
+
+  // 입력칸에서 투자 목록 읽기 (투자금이 0인 항목은 계산에서 뺌)
+  function readInvestments() {
+    var out = [];
+    Array.prototype.forEach.call(investList.children, function (item) {
+      var amount = readNumber(item.querySelector('.inv-amount'));
+      if (amount <= 0) return;
+      out.push({
+        name: item.querySelector('.inv-name').value.trim() || '이름 없는 투자',
+        month: Math.min(readNumber(item.querySelector('.inv-month')), MAX_SIM_MONTHS),
+        amount: amount
+      });
+    });
+    return out;
+  }
+
+  function updateInvestHint(item) {
+    var hint = item.querySelector('.chg-hint');
+    var amount = readNumber(item.querySelector('.inv-amount'));
+    var month = Math.min(readNumber(item.querySelector('.inv-month')), MAX_SIM_MONTHS);
+    hint.classList.remove('in');
+    if (amount <= 0) {
+      hint.textContent = '투자금을 넣으면 계산에 반영돼요.';
+      return;
+    }
+    hint.classList.add('in');
+    hint.textContent = monthText(month) + '에 ' + won(amount) + '이 들어와요.';
+  }
+
+  function updateInvestName(item) {
+    var name = item.querySelector('.inv-name').value.trim();
+    item.querySelector('.chg-del').setAttribute('aria-label', (name || '이 투자') + ' 항목 삭제');
+  }
+
+  function addInvestment() {
+    var id = 'inv-' + (++investSeq);
+    var item = document.createElement('div');
+    item.className = 'chg-item inv-item';
+    item.setAttribute('role', 'listitem');
+    item.innerHTML =
+      '<div class="chg-top">' +
+        '<div class="chg-field">' +
+          '<label for="' + id + '-name">이름</label>' +
+          '<div class="input-box sm"><input id="' + id + '-name" class="inv-name" type="text" autocomplete="off" maxlength="30" placeholder="예: 시드 투자"></div>' +
+        '</div>' +
+        '<button class="chg-del" type="button">삭제</button>' +
+      '</div>' +
+      '<div class="chg-row">' +
+        '<div class="chg-field">' +
+          '<label for="' + id + '-month">몇 개월 후</label>' +
+          '<div class="input-box sm"><input id="' + id + '-month" class="inv-month" type="text" inputmode="numeric" autocomplete="off" placeholder="0"><span class="unit">개월</span></div>' +
+        '</div>' +
+        '<div class="chg-field">' +
+          '<label for="' + id + '-amount">투자금</label>' +
+          '<div class="input-box sm"><input id="' + id + '-amount" class="inv-amount" type="text" inputmode="numeric" autocomplete="off" placeholder="예: 20,000" aria-describedby="' + id + '-hint"><span class="unit">만원</span></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="chg-hint" id="' + id + '-hint"></div>';
+    investList.appendChild(item);
+    updateInvestName(item);
+    updateInvestHint(item);
+    updateAdvancedBadge();
+    calc();
+    item.querySelector('.inv-name').focus();
+  }
+
+  function removeInvestment(item) {
+    var next = item.nextElementSibling || item.previousElementSibling;
+    item.remove();
+    updateAdvancedBadge();
+    calc();
+    if (next) next.querySelector('.chg-del').focus();
+    else investAddBtn.focus();
+  }
+
+  investAddBtn.addEventListener('click', addInvestment);
+
+  investList.addEventListener('input', function (e) {
+    var t = e.target;
+    var item = t.closest('.inv-item');
+    if (!item) return;
+    if (t.classList.contains('inv-amount')) formatInput(t);
+    if (t.classList.contains('inv-month')) {
+      var d = t.value.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '').slice(0, 3);
+      if (d !== t.value) t.value = d;
+    }
+    if (t.classList.contains('inv-name')) updateInvestName(item);
+    updateInvestHint(item);
+    calc();
+  });
+
+  investList.addEventListener('click', function (e) {
+    var btn = e.target.closest('.chg-del');
+    if (btn) removeInvestment(btn.closest('.inv-item'));
+  });
+
+  investList.addEventListener('focusin', function (e) {
+    var t = e.target;
+    if (t.classList.contains('inv-month') || t.classList.contains('inv-amount')) t.select();
   });
 
   setAdvancedOpen(false);
