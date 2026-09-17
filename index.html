@@ -8,50 +8,28 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛫</text></svg>">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <style>
-  /* ===== 색상 규칙: 화면의 모든 색은 아래 변수만 사용 ===== */
+  /* ===== 웜 페이퍼 팔레트: 화면의 모든 색은 아래 변수만 사용 ===== */
+  /* 옅은 색이 필요할 때는 color-mix()로 이 변수에 투명도만 입혀서 씀 */
   :root {
-    /* 기본: 네이비 · 회색 (배경, 글자, 일반 선, 입력칸) */
-    --navy: #1D418C;
-    --navy-deep: #152F66;
-    --navy-soft: #E8EDF7;
-    --navy-ring: rgba(29, 65, 140, 0.12);
-    --ink: #1A2233;
-    --muted: #5F6B80;
-    --line: #D9DFEA;
-    --line-strong: #C3CDE0;
-    --line-soft: #E9EDF4;
-    --paper: #F7F8FB;
-    --white: #FFFFFF;
-    /* 기본 (네이비 배경 위) */
-    --on-dark-soft: #DCE4F5;
-    --on-dark-muted: #AFC0E4;
-    --on-dark-track: rgba(255, 255, 255, 0.1);
-    --on-dark-line: rgba(255, 255, 255, 0.18);
-
-    /* 강조: 노랑 (핵심 결과 숫자, 기본 잔고 그래프 채우기) */
-    --accent: #FFE599;
-    --accent-fill: rgba(255, 229, 153, 0.45);
-
-    /* 부정: 빨강 (지출 증가, 0원 기준선, 6개월 미만, 현금 소진) */
-    --neg: #B83A28;
-    --neg-soft: #FCEDEA;
-    --neg-on-dark: #FF8B7B;
-
-    /* 긍정: 초록 (투자 유치, 흑자 전환, 비용 절감, 12개월 이상 여유) */
-    --pos: #1E7A45;
-    --pos-soft: #E6F4EB;
-    --pos-on-dark: #6ED69B;
-
-    /* 주의: 주황 (6~12개월 경고) */
-    --warn: #A85A00;
-    --warn-soft: #FDF0E1;
-    --warn-on-dark: #FFB057;
+    --bg: #FBF9F5;            /* 페이지 바탕 (따뜻한 종이색) */
+    --surface: #FFFDF9;       /* 카드 바탕 */
+    --border: #ECE6DC;        /* 카드 테두리, 구분선, 그래프 격자 */
+    --ink: #2B2A27;           /* 본문 글자, 제목 */
+    --ink-sub: #7A756C;       /* 보조 글자, 축 숫자, 안내 문구 */
+    --primary: #3D5A80;       /* 잔고 선, 버튼, 링크, 입력칸 포커스 */
+    --fill: #98C1D9;          /* 그래프 채우기 (옅게) */
+    --danger: #E07A5F;        /* 위험: 6개월 미만, 지출, 현금 소진 */
+    --caution: #E6B45E;       /* 주의: 6~12개월 */
+    --safe: #6FA88A;          /* 안전: 12개월 이상, 투자, 흑자, 절감 */
+    --danger-text: #A8503A;   /* 위험 색 글자용 */
+    --caution-text: #8F6A25;  /* 주의 색 글자용 */
+    --safe-text: #45735B;     /* 안전 색 글자용 */
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { -webkit-text-size-adjust: 100%; }
   body {
     font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
-    background: var(--paper);
+    background: var(--bg);
     color: var(--ink);
     line-height: 1.55;
     min-height: 100vh;
@@ -59,19 +37,19 @@
   }
 
   header {
-    background: var(--navy);
-    color: var(--white);
+    background: var(--bg);
+    color: var(--ink);
     padding: 44px 20px 96px;
   }
   .wrap { max-width: 980px; margin: 0 auto; }
   .brand {
     display: inline-flex; align-items: center; gap: 8px;
-    font-weight: 700; font-size: 15px; color: var(--white);
+    font-weight: 700; font-size: 15px; color: var(--ink);
     margin-bottom: 22px;
   }
   .brand span {
     width: 26px; height: 26px; border-radius: 7px;
-    background: var(--white); color: var(--navy);
+    background: var(--ink); color: var(--surface);
     display: grid; place-items: center; font-size: 15px; font-weight: 800;
   }
   h1 {
@@ -83,7 +61,7 @@
   }
   header p {
     margin-top: 14px;
-    color: var(--on-dark-soft);
+    color: var(--ink-sub);
     font-size: 16px;
     max-width: 44ch;
   }
@@ -98,25 +76,25 @@
   .grid > * { min-width: 0; }
 
   .panel {
-    background: var(--white);
+    background: var(--surface);
     border-radius: 18px;
     padding: 26px;
-    border: 1px solid var(--line);
+    border: 1px solid var(--border);
   }
   .panel h2 { font-size: 18px; font-weight: 700; margin-bottom: 4px; letter-spacing: -0.01em; }
-  .panel .sub { font-size: 14px; color: var(--muted); margin-bottom: 22px; }
+  .panel .sub { font-size: 14px; color: var(--ink-sub); margin-bottom: 22px; }
 
   .field { margin-bottom: 18px; }
   .field:last-of-type { margin-bottom: 0; }
   .field label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 7px; }
   .input-box {
     display: flex; align-items: center;
-    border: 1.5px solid var(--line);
+    border: 1.5px solid var(--border);
     border-radius: 12px;
-    background: var(--paper);
+    background: var(--bg);
     transition: border-color .15s, background .15s;
   }
-  .input-box:focus-within { border-color: var(--navy); background: var(--white); box-shadow: 0 0 0 3px var(--navy-ring); }
+  .input-box:focus-within { border-color: var(--primary); background: var(--surface); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent); }
   .input-box input {
     flex: 1; min-width: 0;
     border: 0; outline: 0; background: transparent;
@@ -125,28 +103,28 @@
     padding: 13px 14px;
     font-variant-numeric: tabular-nums;
   }
-  .input-box .unit { padding-right: 14px; color: var(--muted); font-size: 15px; font-weight: 500; }
-  .hint { font-size: 13px; color: var(--muted); margin-top: 6px; min-height: 1em; }
+  .input-box .unit { padding-right: 14px; color: var(--ink-sub); font-size: 15px; font-weight: 500; }
+  .hint { font-size: 13px; color: var(--ink-sub); margin-top: 6px; min-height: 1em; }
 
   .reset {
     margin-top: 22px;
     background: none; border: 0; font: inherit;
-    font-size: 14px; color: var(--navy); font-weight: 600;
+    font-size: 14px; color: var(--primary); font-weight: 600;
     cursor: pointer; padding: 4px 0;
     text-decoration: underline; text-underline-offset: 3px;
   }
-  .reset:focus-visible, input:focus-visible, .adv-toggle:focus-visible, .chg-del:focus-visible, .chg-add:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+  .reset:focus-visible, input:focus-visible, .adv-toggle:focus-visible, .chg-del:focus-visible, .chg-add:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
   /* 입력 그룹: 기본 설정 / 고급 설정 */
-  .group-title { font-size: 15px; font-weight: 700; color: var(--navy); margin-bottom: 14px; }
+  .group-title { font-size: 15px; font-weight: 700; color: var(--ink); margin-bottom: 14px; }
 
   .adv {
     margin-top: 24px;
-    border: 1.5px solid var(--line);
+    border: 1.5px solid var(--border);
     border-radius: 14px;
-    background: var(--white);
+    background: var(--surface);
   }
-  .adv.is-open { border-color: var(--line-strong); }
+  .adv.is-open { border-color: var(--border); }
   .adv-head { margin: 0; font: inherit; }
   .adv-toggle {
     width: 100%;
@@ -156,40 +134,40 @@
     padding: 15px 16px;
     border-radius: 12px;
   }
-  .adv-toggle:hover { background: var(--paper); }
-  .adv-toggle .adv-name { font-size: 15px; font-weight: 700; color: var(--navy); }
+  .adv-toggle:hover { background: var(--bg); }
+  .adv-toggle .adv-name { font-size: 15px; font-weight: 700; color: var(--ink); }
   .adv-badge {
     display: inline-flex; align-items: center; gap: 5px;
     font-size: 12px; font-weight: 700;
     padding: 3px 8px; border-radius: 999px;
-    background: var(--navy-soft); color: var(--navy);
+    background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary);
   }
-  .adv-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--navy); }
+  .adv-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--primary); }
   .adv-badge[hidden] { display: none; }
   .adv-chevron {
     margin-left: auto; flex: none;
     width: 9px; height: 9px;
-    border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+    border-right: 2px solid var(--ink-sub); border-bottom: 2px solid var(--ink-sub);
     transform: translateY(-2px) rotate(45deg);
     transition: transform .2s;
   }
   .adv.is-open .adv-chevron { transform: translateY(2px) rotate(-135deg); }
   .adv-body { padding: 2px 16px 18px; }
   .adv-body[hidden] { display: none; }
-  .adv-section + .adv-section { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 18px; }
+  .adv-section + .adv-section { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 18px; }
 
   /* 지출 변화 */
   .adv-section-title { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
-  .adv-section-sub { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+  .adv-section-sub { font-size: 13px; color: var(--ink-sub); margin-bottom: 12px; }
   .chg-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .chg-list:empty { display: none; }
   .chg-item {
-    border: 1.5px solid var(--line);
+    border: 1.5px solid var(--border);
     border-radius: 12px;
-    background: var(--paper);
+    background: var(--bg);
     padding: 12px;
   }
-  .chg-item .input-box { background: var(--white); }
+  .chg-item .input-box { background: var(--surface); }
   .chg-top { display: flex; align-items: flex-end; gap: 8px; }
   .chg-top .chg-field { flex: 1; min-width: 0; }
   .chg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
@@ -208,40 +186,40 @@
   .input-box.select::after {
     content: ""; position: absolute; right: 12px; top: 50%;
     width: 7px; height: 7px;
-    border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+    border-right: 2px solid var(--ink-sub); border-bottom: 2px solid var(--ink-sub);
     transform: translateY(-70%) rotate(45deg);
     pointer-events: none;
   }
-  select:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
-  .chg-field label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+  select:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .chg-field label { display: block; font-size: 12px; font-weight: 600; color: var(--ink-sub); margin-bottom: 5px; }
   .input-box.sm input { font-size: 16px; padding: 9px 10px; }
   .input-box.sm .unit { padding-right: 10px; font-size: 13px; white-space: nowrap; }
   .chg-del {
     flex: none; height: 46px; padding: 0 12px;
-    border: 1.5px solid var(--line); border-radius: 10px;
-    background: var(--white); color: var(--muted);
+    border: 1.5px solid var(--border); border-radius: 10px;
+    background: var(--surface); color: var(--ink-sub);
     font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
   }
-  .chg-del:hover { color: var(--neg); border-color: var(--neg); }
-  .chg-hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
-  .chg-hint.up { color: var(--neg); }
-  .chg-hint.down, .chg-hint.in { color: var(--pos); }
+  .chg-del:hover { color: var(--danger-text); border-color: var(--danger); }
+  .chg-hint { font-size: 12px; color: var(--ink-sub); margin-top: 8px; }
+  /* 입력칸 아래 풀어쓴 문장에서 금액 부분만 진하게 */
+  .amt { color: var(--ink); font-weight: 600; }
   .chg-add {
     width: 100%; margin-top: 10px; padding: 11px;
-    border: 1.5px dashed var(--line-strong); border-radius: 12px;
-    background: none; color: var(--navy);
+    border: 1.5px dashed var(--border); border-radius: 12px;
+    background: none; color: var(--primary);
     font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
   }
-  .chg-add:hover { background: var(--navy-soft); border-style: solid; }
+  .chg-add:hover { background: var(--bg); border-color: var(--primary); border-style: solid; }
 
   /* 결과 */
   .result {
-    background: var(--navy-deep);
-    color: var(--white);
-    border: 0;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--border);
     overflow: hidden;
   }
-  .result .sub { color: var(--on-dark-muted); }
+  .result .sub { color: var(--ink-sub); }
   .runway {
     display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
     margin: 4px 0 6px;
@@ -251,16 +229,16 @@
     line-height: 1;
     font-weight: 800;
     letter-spacing: -0.05em;
-    color: var(--accent);
+    color: var(--ink);
     font-variant-numeric: tabular-nums;
   }
   .runway .label { font-size: 22px; font-weight: 700; }
   /* 경고 단계 색 (어두운 배경용 밝은 톤) */
-  .runway.lv-red .num { color: var(--neg-on-dark); }
-  .runway.lv-orange .num { color: var(--warn-on-dark); }
-  .runway.lv-green .num { color: var(--pos-on-dark); }
-  .zero-date { font-size: 17px; color: var(--on-dark-soft); }
-  .zero-date strong { color: var(--white); }
+  .runway.lv-red .num { color: var(--danger-text); }
+  .runway.lv-orange .num { color: var(--caution-text); }
+  .runway.lv-green .num { color: var(--safe-text); }
+  .zero-date { font-size: 17px; color: var(--ink-sub); }
+  .zero-date strong { color: var(--ink); }
 
   /* 런웨이 막대 (0~36개월) */
   .rbar { margin: 26px 0 6px; }
@@ -268,7 +246,7 @@
   .rbar-tag {
     position: absolute; top: 0;
     font-size: 13px; font-weight: 700;
-    background: var(--on-dark-muted); color: var(--navy-deep);
+    background: var(--border); color: var(--ink);
     padding: 4px 9px; border-radius: 7px;
     white-space: nowrap;
   }
@@ -276,31 +254,35 @@
     position: relative;
     height: 18px;
     border-radius: 999px;
-    background: var(--on-dark-track);
+    background: var(--border);
   }
   .rbar-grid {
     position: absolute; top: 4px; bottom: 4px; width: 1px;
-    background: var(--on-dark-line);
+    background: var(--surface);
   }
   .rbar-fill {
     position: absolute; top: 0; bottom: 0; left: 0;
     border-radius: 999px;
-    background: var(--on-dark-muted);
+    background: var(--ink-sub);
   }
   .rbar-pin {
     position: absolute; top: -8px; bottom: -4px; width: 2px;
     margin-left: -1px;
-    background: var(--on-dark-muted);
+    background: var(--ink-sub);
   }
-  .rbar.lv-red .rbar-fill, .rbar.lv-red .rbar-pin, .rbar.lv-red .rbar-tag { background: var(--neg-on-dark); }
-  .rbar.lv-orange .rbar-fill, .rbar.lv-orange .rbar-pin, .rbar.lv-orange .rbar-tag { background: var(--warn-on-dark); }
-  .rbar.lv-green .rbar-fill, .rbar.lv-green .rbar-pin, .rbar.lv-green .rbar-tag { background: var(--pos-on-dark); }
+  /* 런웨이 막대: 원래 색 / 상태 배지(말풍선): 옅은 배경 + 글자용 색 */
+  .rbar.lv-red .rbar-fill, .rbar.lv-red .rbar-pin { background: var(--danger); }
+  .rbar.lv-orange .rbar-fill, .rbar.lv-orange .rbar-pin { background: var(--caution); }
+  .rbar.lv-green .rbar-fill, .rbar.lv-green .rbar-pin { background: var(--safe); }
+  .rbar.lv-red .rbar-tag { background: color-mix(in srgb, var(--danger) 14%, var(--surface)); color: var(--danger-text); }
+  .rbar.lv-orange .rbar-tag { background: color-mix(in srgb, var(--caution) 14%, var(--surface)); color: var(--caution-text); }
+  .rbar.lv-green .rbar-tag { background: color-mix(in srgb, var(--safe) 14%, var(--surface)); color: var(--safe-text); }
   .rbar-ticks {
     position: relative;
     height: 18px;
     margin-top: 9px;
     font-size: 12px;
-    color: var(--on-dark-muted);
+    color: var(--ink-sub);
     font-variant-numeric: tabular-nums;
   }
   .rbar-ticks span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
@@ -309,28 +291,28 @@
 
   .stats {
     display: grid; grid-template-columns: 1fr 1fr;
-    gap: 1px; background: var(--on-dark-line);
+    gap: 1px; background: var(--border);
     border-radius: 12px; overflow: hidden;
     margin-top: 22px;
   }
-  .stat { background: var(--navy); padding: 16px; }
+  .stat { background: var(--bg); padding: 16px; }
   .stats.one { grid-template-columns: 1fr; }
 
   /* 투자 없이 → 투자 반영 시 */
   .compare {
     display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center; gap: 10px;
-    background: var(--navy);
+    background: var(--bg);
     border-radius: 12px;
     padding: 14px 16px;
     margin-top: 22px;
   }
-  .compare .k { font-size: 13px; color: var(--on-dark-muted); }
+  .compare .k { font-size: 13px; color: var(--ink-sub); }
   .compare .v { font-size: 20px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
-  .compare .after .v { color: var(--accent); }
-  .compare .arrow { font-size: 18px; color: var(--on-dark-muted); }
+  .compare .after .v { color: var(--ink); }
+  .compare .arrow { font-size: 18px; color: var(--ink-sub); }
   .compare + .stats { margin-top: 10px; }
-  .stat .k { font-size: 13px; color: var(--on-dark-muted); }
+  .stat .k { font-size: 13px; color: var(--ink-sub); }
   .stat .v { font-size: 20px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
 
   /* 상황별 안내 (한 박스) */
@@ -349,17 +331,18 @@
     background: currentColor;
   }
   .status strong { font-weight: 700; }
-  .status.red { background: var(--neg-soft); color: var(--neg); }
-  .status.orange { background: var(--warn-soft); color: var(--warn); }
-  .status.green { background: var(--pos-soft); color: var(--pos); }
+  /* 경고 박스: 원래 색을 옅게(14%) 깔고 글자용 색으로 */
+  .status.red { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger-text); }
+  .status.orange { background: color-mix(in srgb, var(--caution) 14%, transparent); color: var(--caution-text); }
+  .status.green { background: color-mix(in srgb, var(--safe) 14%, transparent); color: var(--safe-text); }
 
   .safe-big {
     font-size: clamp(34px, 7vw, 48px);
     font-weight: 800; letter-spacing: -0.03em;
-    color: var(--pos-on-dark); line-height: 1.2; margin: 6px 0 8px;
+    color: var(--safe-text); line-height: 1.2; margin: 6px 0 8px;
   }
 
-  footer { text-align: center; font-size: 13px; color: var(--muted); padding: 10px 20px 40px; }
+  footer { text-align: center; font-size: 13px; color: var(--ink-sub); padding: 10px 20px 40px; }
 
   /* 잔고 그래프 */
   .chart-panel { margin-top: 18px; }
@@ -380,21 +363,21 @@
     display: grid; place-items: center;
     margin-top: 1px;
     font-size: 11px; font-weight: 700; line-height: 1;
-    background: var(--pos); color: var(--white);
+    background: var(--safe); color: var(--surface);
   }
-  .num-badge.neg { background: var(--neg); }
+  .num-badge.neg { background: var(--danger); }
   .chart-tip {
     position: absolute; z-index: 2;
     display: flex; align-items: flex-start; gap: 8px;
     max-width: 280px;
     padding: 8px 10px;
     border-radius: 8px;
-    background: var(--navy-deep); color: var(--white);
+    background: var(--ink); color: var(--surface);
     font-size: 13px; line-height: 1.45;
     pointer-events: none;
   }
   .chart-tip[hidden] { display: none; }
-  .chart-fallback { display: grid; place-items: center; height: 100%; color: var(--muted); font-size: 14px; text-align: center; }
+  .chart-fallback { display: grid; place-items: center; height: 100%; color: var(--ink-sub); font-size: 14px; text-align: center; }
 
   @media (max-width: 760px) {
     .chart-box { height: calc(260px + var(--strip-h, 0px)); }
@@ -652,16 +635,31 @@
     if (clean !== raw) input.value = clean;
   }
 
+  // 안내 문장 채우기: parts는 글자 또는 { amt: '금액' }. 금액만 .amt(진한 글자)로 감쌈
+  function setHint(el, parts) {
+    el.textContent = '';
+    parts.forEach(function (part) {
+      if (typeof part === 'string') {
+        el.appendChild(document.createTextNode(part));
+      } else {
+        var span = document.createElement('span');
+        span.className = 'amt';
+        span.textContent = part.amt;
+        el.appendChild(span);
+      }
+    });
+  }
+
   function updateHints(cash, expense, revenue, g) {
-    document.getElementById('cash-hint').textContent = cash ? won(cash) : '';
-    document.getElementById('expense-hint').textContent = expense ? won(expense) : '';
-    document.getElementById('revenue-hint').textContent = revenue ? won(revenue) : '';
+    setHint(document.getElementById('cash-hint'), cash ? [{ amt: won(cash) }] : []);
+    setHint(document.getElementById('expense-hint'), expense ? [{ amt: won(expense) }] : []);
+    setHint(document.getElementById('revenue-hint'), revenue ? [{ amt: won(revenue) }] : []);
     var gh = document.getElementById('growth-hint');
     if (g === 0) {
       gh.textContent = '비워두면 매출이 그대로라고 보고 계산해요.';
     } else {
       var rev12 = revenue * Math.pow(1 + g / 100, 12);
-      gh.textContent = '1년 뒤 월 매출 약 ' + won(rev12) + (g < 0 ? ' (매출이 줄어드는 가정)' : '');
+      setHint(gh, ['1년 뒤 월 매출 약 ', { amt: won(rev12) }, g < 0 ? ' (매출이 줄어드는 가정)' : '']);
     }
   }
 
@@ -880,12 +878,21 @@
   function cssVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
+  // #RRGGBB 색에 투명도를 입힌 rgba 문자열
+  function withAlpha(hex, alpha) {
+    var h = hex.replace('#', '');
+    if (h.length === 3) h = h.replace(/(.)/g, '$1$1');
+    var n = parseInt(h, 16);
+    return 'rgba(' + ((n >> 16) & 255) + ', ' + ((n >> 8) & 255) + ', ' + (n & 255) + ', ' + alpha + ')';
+  }
   var C = {
-    navy: cssVar('--navy'), navyDeep: cssVar('--navy-deep'), white: cssVar('--white'),
-    muted: cssVar('--muted'), lineSoft: cssVar('--line-soft'), lineStrong: cssVar('--line-strong'),
-    accentFill: cssVar('--accent-fill'),
-    neg: cssVar('--neg'), pos: cssVar('--pos')
+    surface: cssVar('--surface'), border: cssVar('--border'),
+    ink: cssVar('--ink'), inkSub: cssVar('--ink-sub'),
+    primary: cssVar('--primary'),
+    danger: cssVar('--danger'), safe: cssVar('--safe')
   };
+  C.fill = withAlpha(cssVar('--fill'), 0.2);       // 잔고 채우기: 투명도 20%
+  C.zeroLine = withAlpha(C.danger, 0.6);           // 0원 기준선: 투명도 60%
   var chartMonths = 0; // 그래프에 그려진 마지막 달 위치
 
   // 그래프 표시 항목 (번호 = 달 순서): [{ n, kind, shape, month, at, from, to, text, row }]
@@ -909,7 +916,7 @@
   var AXIS_LEFT = 50;   // 줄 나누기용 어림값: 세로축 숫자 폭
   var PAD_RIGHT = 12;
 
-  function kindColor(kind) { return kind === 'up' ? C.neg : C.pos; }
+  function kindColor(kind) { return kind === 'up' ? C.danger : C.safe; }
   function circled(n) { return n <= 20 ? String.fromCharCode(0x245F + n) : '(' + n + ')'; }
   function signedWon(amount) { return (amount > 0 ? '+' : '-') + won(Math.abs(amount)); }
 
@@ -977,10 +984,10 @@
     for (var i = 0; i < chartGroups.length; i++) if (chartGroups[i].at === index) return chartGroups[i];
     return null;
   }
-  // 합친 마커 색: 의미가 모두 같으면 그 색, 빨강·초록이 섞이면 기본 네이비
+  // 합친 마커 색: 의미가 모두 같으면 그 색, 위험·안전이 섞이면 보조 글자색
   function groupColor(g) {
     var colors = g.items.map(function (it) { return kindColor(it.kind); });
-    return colors.every(function (c) { return c === colors[0]; }) ? colors[0] : C.navy;
+    return colors.every(function (c) { return c === colors[0]; }) ? colors[0] : C.inkSub;
   }
 
   // 그래프 점에 마우스를 올리거나 탭했을 때 툴팁에 붙는 항목 (범례와 같은 내용)
@@ -1040,11 +1047,11 @@
     ctx.fillStyle = color;
     ctx.fill();
     if (ring) {
-      ctx.strokeStyle = C.white;
+      ctx.strokeStyle = C.surface;
       ctx.lineWidth = 2;
       ctx.stroke();
     }
-    ctx.fillStyle = C.white;
+    ctx.fillStyle = C.surface;
     ctx.fillText(text, x, y + 0.5);
   }
 
@@ -1056,7 +1063,7 @@
       if (!chartBarRows) return;
       var ctx = ch.ctx, area = ch.chartArea;
       ctx.save();
-      ctx.strokeStyle = C.lineStrong;
+      ctx.strokeStyle = C.border;
       ctx.lineWidth = 1;
       ctx.setLineDash([2, 3]);
       barGeometry(ch).forEach(function (g) {
@@ -1076,7 +1083,7 @@
       ctx.textBaseline = 'middle';
 
       // 0원 기준선
-      ctx.strokeStyle = C.neg;
+      ctx.strokeStyle = C.zeroLine;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(area.left, y0);
@@ -1104,9 +1111,9 @@
       if (runoutIndex !== null) {
         ctx.beginPath();
         ctx.arc(pts[runoutIndex].x, y0, RUNOUT_R, 0, Math.PI * 2);
-        ctx.fillStyle = C.neg;
+        ctx.fillStyle = C.danger;
         ctx.fill();
-        ctx.strokeStyle = C.white;
+        ctx.strokeStyle = C.surface;
         ctx.lineWidth = 2;
         ctx.stroke();
       }
@@ -1223,8 +1230,9 @@
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: C.navyDeep,
-          titleColor: C.white,
+          backgroundColor: C.ink,
+          titleColor: C.surface,
+          bodyColor: C.surface,
           padding: 10,
           displayColors: false,
           callbacks: {
@@ -1242,13 +1250,13 @@
       scales: {
         x: {
           grid: { display: false },
-          ticks: { color: C.muted, autoSkip: true, maxTicksLimit: 7, maxRotation: 0 }
+          ticks: { color: C.inkSub, autoSkip: true, maxTicksLimit: 7, maxRotation: 0 }
         },
         y: {
           min: 0, // 항상 0부터 시작
           grace: '12%',
-          ticks: { color: C.muted, callback: axisMoney },
-          grid: { color: C.lineSoft }
+          ticks: { color: C.inkSub, callback: axisMoney },
+          grid: { color: C.border }
         }
       }
     };
@@ -1261,9 +1269,9 @@
         datasets: [{
           label: '잔고',
           data: data.values,
-          borderColor: C.navy,
+          borderColor: C.primary,
           borderWidth: 2.5,
-          backgroundColor: C.accentFill,
+          backgroundColor: C.fill,
           fill: 'origin',
           tension: 0, // 직선으로 연결
           // 현금 소진 달은 0원 점에서 끝나므로 선이 0원 아래로 내려가지 않음
@@ -1275,8 +1283,8 @@
             return 3.5;
           },
           pointHoverRadius: 4,
-          pointBackgroundColor: C.navy,
-          pointBorderColor: C.navy
+          pointBackgroundColor: C.primary,
+          pointBorderColor: C.primary
         }]
       },
       plugins: [markerPlugin],
@@ -1532,7 +1540,6 @@
     var v = readChangeItem(item);
     var money = won(Math.abs(v.amount));
     var up = v.amount > 0;
-    hint.classList.remove('up', 'down');
     if (v.amount === 0) {
       hint.textContent = (v.type === 'once' ? '금액' : '월 금액') + '을 넣으면 계산에 반영돼요.';
       return;
@@ -1541,18 +1548,17 @@
       hint.textContent = '몇 개월 동안 적용할지 넣으면 계산에 반영돼요.';
       return;
     }
-    hint.classList.add(up ? 'up' : 'down');
     if (v.type === 'once') {
-      hint.textContent = monthText(v.start) + '에 한 번만 ' + money +
-        (up ? '이 나가요.' : '만큼 비용이 줄어요.');
+      setHint(hint, [monthText(v.start) + '에 한 번만 ', { amt: money },
+        up ? '이 나가요.' : '만큼 비용이 줄어요.']);
     } else if (v.type === 'limited') {
       var period = v.duration === 1
         ? monthText(v.start) + ' 한 달 동안'
         : monthText(v.start) + '부터 ' + monthText(v.start + v.duration - 1) + '까지 ' + v.duration + '개월 동안';
-      hint.textContent = period + ' 매달 ' + money + (up ? '씩 지출이 늘어나요.' : '씩 비용이 줄어요.');
+      setHint(hint, [period + ' 매달 ', { amt: money }, up ? '씩 지출이 늘어나요.' : '씩 비용이 줄어요.']);
     } else {
-      hint.textContent = monthText(v.start) + '부터 매달 ' + money +
-        (up ? '씩 지출이 늘어나요.' : '씩 비용이 줄어요.');
+      setHint(hint, [monthText(v.start) + '부터 매달 ', { amt: money },
+        up ? '씩 지출이 늘어나요.' : '씩 비용이 줄어요.']);
     }
   }
 
@@ -1665,13 +1671,11 @@
     var hint = item.querySelector('.chg-hint');
     var amount = readNumber(item.querySelector('.inv-amount'));
     var month = Math.min(readNumber(item.querySelector('.inv-month')), MAX_SIM_MONTHS);
-    hint.classList.remove('in');
     if (amount <= 0) {
       hint.textContent = '투자금을 넣으면 계산에 반영돼요.';
       return;
     }
-    hint.classList.add('in');
-    hint.textContent = monthText(month) + '에 ' + won(amount) + '이 들어와요.';
+    setHint(hint, [monthText(month) + '에 ', { amt: won(amount) }, '이 들어와요.']);
   }
 
   function updateInvestName(item) {
