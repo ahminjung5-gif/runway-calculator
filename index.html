@@ -108,7 +108,54 @@
     cursor: pointer; padding: 4px 0;
     text-decoration: underline; text-underline-offset: 3px;
   }
-  .reset:focus-visible, input:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+  .reset:focus-visible, input:focus-visible, .adv-toggle:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+
+  /* 입력 그룹: 기본 설정 / 고급 설정 */
+  .group-title { font-size: 15px; font-weight: 700; color: var(--navy); margin-bottom: 14px; }
+
+  .adv {
+    margin-top: 24px;
+    border: 1.5px solid var(--line);
+    border-radius: 14px;
+    background: var(--white);
+  }
+  .adv.is-open { border-color: #C3CDE0; }
+  .adv-head { margin: 0; font: inherit; }
+  .adv-toggle {
+    width: 100%;
+    display: flex; align-items: center; gap: 8px;
+    background: none; border: 0; font: inherit; color: var(--ink);
+    text-align: left; cursor: pointer;
+    padding: 15px 16px;
+    border-radius: 12px;
+  }
+  .adv-toggle:hover { background: var(--paper); }
+  .adv-toggle .adv-name { font-size: 15px; font-weight: 700; color: var(--navy); }
+  .adv-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12px; font-weight: 700;
+    padding: 3px 8px; border-radius: 999px;
+    background: var(--butter); color: var(--navy-deep);
+  }
+  .adv-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--navy); }
+  .adv-badge[hidden] { display: none; }
+  .adv-chevron {
+    margin-left: auto; flex: none;
+    width: 9px; height: 9px;
+    border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+    transform: translateY(-2px) rotate(45deg);
+    transition: transform .2s;
+  }
+  .adv.is-open .adv-chevron { transform: translateY(2px) rotate(-135deg); }
+  .adv-body { padding: 2px 16px 18px; }
+  .adv-body[hidden] { display: none; }
+  .adv-empty {
+    font-size: 14px; color: var(--muted);
+    background: var(--paper);
+    border: 1.5px dashed var(--line);
+    border-radius: 10px;
+    padding: 14px;
+  }
 
   /* 결과 */
   .result {
@@ -260,6 +307,10 @@
       <h2 id="in-title">회사 숫자 입력</h2>
       <p class="sub">모든 금액은 만원 단위예요.</p>
 
+      <!-- 기본 설정: 항상 보임 -->
+      <div class="group" role="group" aria-labelledby="basic-title">
+      <h3 class="group-title" id="basic-title">기본 설정</h3>
+
       <div class="field">
         <label for="cash">보유 현금</label>
         <div class="input-box">
@@ -294,6 +345,27 @@
           <span class="unit">%</span>
         </div>
         <div class="hint" id="growth-hint">비워두면 매출이 그대로라고 보고 계산해요.</div>
+      </div>
+      </div>
+
+      <!-- 고급 설정: 처음엔 접힘, 값이 들어가면 제목 옆에 '적용 중' 표시 -->
+      <div class="adv" id="adv">
+        <h3 class="adv-head">
+          <button class="adv-toggle" id="adv-toggle" type="button" aria-expanded="false" aria-controls="adv-body">
+            <span class="adv-name">고급 설정</span>
+            <span class="adv-badge" id="adv-badge" hidden>적용 중</span>
+            <span class="adv-chevron" aria-hidden="true"></span>
+          </button>
+        </h3>
+        <div class="adv-body" id="adv-body" role="region" aria-labelledby="adv-toggle" hidden>
+          <!--
+            고급 설정 입력칸은 이 안에 추가하세요.
+            값이 들어갔을 때 '적용 중'으로 인정할 입력칸에는 data-advanced 속성을 붙이면 돼요.
+            예) <input id="hire-count" type="text" inputmode="numeric" data-advanced>
+            체크박스/라디오는 체크 여부로, 나머지는 값이 비어 있지 않은지로 판단해요.
+          -->
+          <p class="adv-empty">채용 계획, 투자 유치 시나리오를 여기에 추가할 예정이에요.</p>
+        </div>
       </div>
 
       <button class="reset" id="reset" type="button">예시 값으로 되돌리기</button>
@@ -754,6 +826,51 @@
     els.result.innerHTML = html;
   }
 
+  // ===== 고급 설정 (접기/펼치기 + '적용 중' 표시) =====
+  var adv = {
+    box: document.getElementById('adv'),
+    toggle: document.getElementById('adv-toggle'),
+    body: document.getElementById('adv-body'),
+    badge: document.getElementById('adv-badge')
+  };
+
+  function setAdvancedOpen(open) {
+    adv.toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    adv.body.hidden = !open;
+    adv.box.classList.toggle('is-open', open);
+  }
+
+  // data-advanced가 붙은 입력칸 중 하나라도 값이 있으면 적용 중
+  function advancedInputs() {
+    return Array.prototype.slice.call(adv.body.querySelectorAll('[data-advanced]'));
+  }
+  function isAdvancedActive() {
+    return advancedInputs().some(function (el) {
+      if (el.type === 'checkbox' || el.type === 'radio') return el.checked;
+      return String(el.value).trim() !== '';
+    });
+  }
+  function updateAdvancedBadge() {
+    adv.badge.hidden = !isAdvancedActive();
+  }
+  function clearAdvanced() {
+    advancedInputs().forEach(function (el) {
+      if (el.type === 'checkbox' || el.type === 'radio') el.checked = el.defaultChecked;
+      else el.value = '';
+    });
+    updateAdvancedBadge();
+  }
+
+  adv.toggle.addEventListener('click', function () {
+    setAdvancedOpen(adv.toggle.getAttribute('aria-expanded') !== 'true');
+  });
+  // 나중에 추가될 입력칸도 자동으로 감지 (이벤트 위임)
+  adv.body.addEventListener('input', updateAdvancedBadge);
+  adv.body.addEventListener('change', updateAdvancedBadge);
+
+  setAdvancedOpen(false);
+  updateAdvancedBadge();
+
   ['cash', 'expense', 'revenue'].forEach(function (key) {
     els[key].addEventListener('input', function () {
       formatInput(els[key]);
@@ -773,6 +890,7 @@
     els.expense.value = comma(DEFAULTS.expense);
     els.revenue.value = comma(DEFAULTS.revenue);
     els.growth.value = '';
+    clearAdvanced();
     calc();
   });
 
