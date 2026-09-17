@@ -246,6 +246,15 @@
         <div class="hint" id="revenue-hint"></div>
       </div>
 
+      <div class="field">
+        <label for="growth">월 매출 성장률</label>
+        <div class="input-box">
+          <input id="growth" type="text" inputmode="decimal" autocomplete="off" value="" placeholder="0">
+          <span class="unit">%</span>
+        </div>
+        <div class="hint" id="growth-hint">비워두면 매출이 그대로라고 보고 계산해요.</div>
+      </div>
+
       <button class="reset" id="reset" type="button">예시 값으로 되돌리기</button>
     </section>
 
@@ -254,16 +263,18 @@
   </div>
 </main>
 
-<footer>계산 결과는 매달 지출과 매출이 지금과 같다고 가정한 추정치예요.</footer>
+<footer>계산 결과는 매달 지출이 같고 매출은 입력한 성장률대로 변한다고 가정한 추정치예요.</footer>
 
 <script>
   var DEFAULTS = { cash: 30000, expense: 2500, revenue: 800 };
   var MAX_CELLS = 36;
+  var MAX_SIM_MONTHS = 600; // 최대 50년까지 계산
 
   var els = {
     cash: document.getElementById('cash'),
     expense: document.getElementById('expense'),
     revenue: document.getElementById('revenue'),
+    growth: document.getElementById('growth'),
     result: document.getElementById('result')
   };
 
@@ -271,6 +282,13 @@
   function readNumber(input) {
     var n = parseInt(String(input.value).replace(/[^0-9]/g, ''), 10);
     return isNaN(n) ? 0 : n;
+  }
+
+  // 성장률 읽기 (비어 있으면 0)
+  function readRate(input) {
+    var n = parseFloat(String(input.value).replace(/[^0-9.\-]/g, ''));
+    if (isNaN(n)) return 0;
+    return Math.max(-99, Math.min(1000, n));
   }
 
   // 1,234 형태
@@ -287,6 +305,13 @@
     if (eok > 0) out += comma(eok) + '억';
     if (man > 0) out += (out ? ' ' : '') + comma(man) + '만';
     return sign + out + '원';
+  }
+
+  // 오늘로부터 n개월 뒤의 "YYYY년 M월"
+  function monthText(offset) {
+    var now = new Date();
+    var d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    return d.getFullYear() + '년 ' + (d.getMonth() + 1) + '월';
   }
 
   // 입력칸에 콤마 자동 표시 (커서 위치 유지)
@@ -306,10 +331,62 @@
     try { input.setSelectionRange(newPos, newPos); } catch (e) {}
   }
 
-  function updateHints(cash, expense, revenue) {
+  // 성장률 입력칸: 숫자, 소수점 1개(둘째 자리까지), 맨 앞 마이너스만 허용
+  function formatRateInput(input) {
+    var raw = input.value;
+    var v = raw.replace(/[^0-9.\-]/g, '');
+    var neg = v.charAt(0) === '-';
+    v = v.replace(/-/g, '');
+    var parts = v.split('.');
+    v = parts[0].slice(0, 4) + (parts.length > 1 ? '.' + parts.slice(1).join('').slice(0, 2) : '');
+    var clean = (neg ? '-' : '') + v;
+    if (clean !== raw) input.value = clean;
+  }
+
+  function updateHints(cash, expense, revenue, g) {
     document.getElementById('cash-hint').textContent = cash ? won(cash) : '';
     document.getElementById('expense-hint').textContent = expense ? won(expense) : '';
     document.getElementById('revenue-hint').textContent = revenue ? won(revenue) : '';
+    var gh = document.getElementById('growth-hint');
+    if (g === 0) {
+      gh.textContent = '비워두면 매출이 그대로라고 보고 계산해요.';
+    } else {
+      var rev12 = revenue * Math.pow(1 + g / 100, 12);
+      gh.textContent = '1년 뒤 월 매출 약 ' + won(rev12) + (g < 0 ? ' (매출이 줄어드는 가정)' : '');
+    }
+  }
+
+  // 한 달씩 잔고 계산
+  // 이번 달(1개월 차)은 지금 매출 그대로, 다음 달부터 성장률 반영
+  function simulate(cash, expense, revenue, g) {
+    var balance = cash;
+    var rev = revenue;
+    var minBalance = cash;
+    var breakEven = null;
+    for (var m = 1; m <= MAX_SIM_MONTHS; m++) {
+      var burnM = expense - rev;
+      if (burnM <= 0 && breakEven === null) breakEven = m;
+      if (burnM > 0 && balance - burnM <= 0) {
+        // 이 달 안에 현금이 바닥남: 소수점 개월까지 계산
+        return { runway: (m - 1) + Math.max(0, balance) / burnM, minBalance: 0, breakEven: null };
+      }
+      balance -= burnM;
+      if (balance < minBalance) minBalance = balance;
+      // 성장률이 0 이상이고 이미 흑자면 이후로도 현금이 줄지 않음
+      if (burnM <= 0 && g >= 0) break;
+      rev = rev * (1 + g / 100);
+    }
+    return { runway: null, minBalance: minBalance, breakEven: breakEven };
+  }
+
+  // 12개월 뒤 잔고
+  function balanceAfter(months, cash, expense, revenue, g) {
+    var balance = cash, rev = revenue;
+    for (var m = 0; m < months; m++) {
+      balance -= expense - rev;
+      rev = rev * (1 + g / 100);
+    }
+    return balance;
   }
 
   function monthGrid(runway) {
@@ -325,28 +402,42 @@
     return html;
   }
 
+  function rateText(g) {
+    return (Math.round(g * 100) / 100) + '%';
+  }
+
   function calc() {
     var cash = readNumber(els.cash);
     var expense = readNumber(els.expense);
     var revenue = readNumber(els.revenue);
+    var g = readRate(els.growth);
     var burn = expense - revenue;
-    updateHints(cash, expense, revenue);
+    updateHints(cash, expense, revenue, g);
 
+    var burnLabel = g === 0 ? '월 순소진액' : '이번 달 순소진액';
     var html = '<h2>계산 결과</h2>';
 
-    // 1) 현금이 줄지 않는 경우
-    if (burn <= 0) {
+    // 1) 현금이 줄지 않는 경우 (지금 흑자이고 매출이 줄지 않음)
+    if (burn <= 0 && g >= 0) {
       var profit = -burn;
+      var after12 = balanceAfter(12, cash, expense, revenue, g);
       html += '<p class="sub">매출이 지출보다 크거나 같아요.</p>';
       html += '<div class="safe-big">현금이 줄지 않아요</div>';
       html += '<p class="zero-date">지금 추세라면 돈이 떨어질 걱정은 없어요.</p>';
       html += '<div class="stats">' +
-        '<div class="stat"><div class="k">월 순소진액</div><div class="v">0원</div></div>' +
-        '<div class="stat"><div class="k">매달 남는 돈</div><div class="v">' + won(profit) + '</div></div>' +
+        '<div class="stat"><div class="k">' + burnLabel + '</div><div class="v">0원</div></div>' +
+        '<div class="stat"><div class="k">이번 달 남는 돈</div><div class="v">' + won(profit) + '</div></div>' +
         '</div>';
-      html += '<div class="note">' + (profit > 0
-        ? '매달 ' + won(profit) + '씩 현금이 늘어나요. 1년 뒤엔 약 ' + won(cash + profit * 12) + '이 돼요.'
-        : '매출과 지출이 딱 같아요. 지출이 조금만 늘어도 현금이 줄기 시작하니 살펴봐 주세요.') + '</div>';
+      var safeNote;
+      if (profit > 0 || g > 0) {
+        safeNote = (g > 0
+          ? '매출이 매달 ' + rateText(g) + '씩 늘어나면 '
+          : '매달 ' + won(profit) + '씩 현금이 늘어나요. ') +
+          '1년 뒤엔 약 ' + won(after12) + '이 돼요.';
+      } else {
+        safeNote = '매출과 지출이 딱 같아요. 지출이 조금만 늘어도 현금이 줄기 시작하니 살펴봐 주세요.';
+      }
+      html += '<div class="note">' + safeNote + '</div>';
       els.result.innerHTML = html;
       return;
     }
@@ -356,21 +447,43 @@
       html += '<p class="sub">보유 현금을 입력해 주세요.</p>';
       html += '<div class="runway"><span class="num">0</span><span class="label">개월</span></div>';
       html += '<div class="stats">' +
-        '<div class="stat"><div class="k">월 순소진액</div><div class="v">' + won(burn) + '</div></div>' +
+        '<div class="stat"><div class="k">' + burnLabel + '</div><div class="v">' + won(Math.max(burn, 0)) + '</div></div>' +
         '<div class="stat"><div class="k">런웨이</div><div class="v">0개월</div></div>' +
         '</div>';
-      html += '<div class="note danger">지금은 매달 ' + won(burn) + '이 부족해요. 보유 현금을 넣으면 버틸 수 있는 기간을 계산해요.</div>';
+      html += '<div class="note danger">' + (burn > 0
+        ? '지금은 매달 ' + won(burn) + '이 부족해요. '
+        : '') + '보유 현금을 넣으면 버틸 수 있는 기간을 계산해요.</div>';
       els.result.innerHTML = html;
       return;
     }
 
-    // 3) 일반적인 경우
-    var runway = cash / burn;
-    var shown = runway >= 100 ? comma(runway) : (Math.floor(runway * 10) / 10).toFixed(1).replace(/\.0$/, '');
+    // 3) 런웨이 계산
+    var runway, sim = null;
+    if (g === 0) {
+      runway = cash / burn; // 기존과 똑같은 계산
+    } else {
+      sim = simulate(cash, expense, revenue, g);
+      runway = sim.runway;
+    }
 
-    var now = new Date();
-    var end = new Date(now.getFullYear(), now.getMonth() + Math.floor(runway), 1);
-    var endText = end.getFullYear() + '년 ' + (end.getMonth() + 1) + '월';
+    // 3-a) 성장 덕분에 현금이 바닥나기 전에 흑자 전환
+    if (runway === null) {
+      html += '<p class="sub">매출이 매달 ' + rateText(g) + '씩 늘어난다고 보면</p>';
+      html += '<div class="safe-big">현금이 바닥나지 않아요</div>';
+      html += '<p class="zero-date"><strong>' + monthText(sim.breakEven - 1) + '</strong>쯤 매출이 지출을 넘어서요.</p>';
+      html += '<div class="stats">' +
+        '<div class="stat"><div class="k">' + burnLabel + '</div><div class="v">' + won(burn) + '</div></div>' +
+        '<div class="stat"><div class="k">흑자 전환 예상</div><div class="v">' + monthText(sim.breakEven - 1) + '</div></div>' +
+        '</div>';
+      html += '<div class="note">흑자 전환 전까지 현금이 가장 적을 때 약 ' + won(sim.minBalance) +
+        '이 남아요. 성장률이 예상보다 낮으면 결과가 달라지니 0%일 때도 함께 확인해 보세요.</div>';
+      els.result.innerHTML = html;
+      return;
+    }
+
+    // 3-b) 현금이 바닥나는 경우
+    var shown = runway >= 100 ? comma(runway) : (Math.floor(runway * 10) / 10).toFixed(1).replace(/\.0$/, '');
+    var endText = monthText(Math.floor(runway));
 
     var note, noteClass;
     if (runway < 6) {
@@ -387,7 +500,12 @@
       note = '18개월 이상 여유가 있어요. 성장에 투자할 여력이 충분한 편이에요.';
     }
 
-    html += '<p class="sub">지금 속도로 현금을 쓰면</p>';
+    var subText;
+    if (g === 0) subText = '지금 속도로 현금을 쓰면';
+    else if (g > 0) subText = '매출이 매달 ' + rateText(g) + '씩 늘어난다고 보면';
+    else subText = '매출이 매달 ' + rateText(-g) + '씩 줄어든다고 보면';
+
+    html += '<p class="sub">' + subText + '</p>';
     html += '<div class="runway"><span class="num">' + shown + '</span><span class="label">개월</span></div>';
     html += '<p class="zero-date"><strong>' + endText + '</strong>쯤 현금이 바닥나요.</p>';
     html += monthGrid(runway);
@@ -395,7 +513,7 @@
       html += '<p class="month-legend" style="justify-content:flex-start">3년이 넘어서 막대가 가득 찼어요.</p>';
     }
     html += '<div class="stats">' +
-      '<div class="stat"><div class="k">월 순소진액</div><div class="v">' + won(burn) + '</div></div>' +
+      '<div class="stat"><div class="k">' + burnLabel + '</div><div class="v">' + won(Math.max(burn, 0)) + '</div></div>' +
       '<div class="stat"><div class="k">현금 소진 예상</div><div class="v">' + endText + '</div></div>' +
       '</div>';
     html += '<div class="' + noteClass + '">' + note + '</div>';
@@ -411,10 +529,17 @@
     els[key].addEventListener('focus', function () { this.select(); });
   });
 
+  els.growth.addEventListener('input', function () {
+    formatRateInput(els.growth);
+    calc();
+  });
+  els.growth.addEventListener('focus', function () { this.select(); });
+
   document.getElementById('reset').addEventListener('click', function () {
     els.cash.value = comma(DEFAULTS.cash);
     els.expense.value = comma(DEFAULTS.expense);
     els.revenue.value = comma(DEFAULTS.revenue);
+    els.growth.value = '';
     calc();
   });
 
