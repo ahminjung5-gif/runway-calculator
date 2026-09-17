@@ -377,6 +377,57 @@
     pointer-events: none;
   }
   .chart-tip[hidden] { display: none; }
+  /* 시나리오 비교 */
+  .chart-head { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
+  .switch {
+    position: relative;
+    display: inline-flex; align-items: center; gap: 10px;
+    font-size: 14px; font-weight: 600; color: var(--ink);
+    cursor: pointer; user-select: none;
+  }
+  .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+  .switch-track {
+    position: relative; flex: none;
+    width: 40px; height: 24px; border-radius: 999px;
+    background: var(--ink-sub);
+    transition: background .15s;
+  }
+  .switch-track::after {
+    content: ""; position: absolute; top: 3px; left: 3px;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--surface);
+    transition: transform .15s;
+  }
+  .switch input:checked + .switch-track { background: var(--primary); }
+  .switch input:checked + .switch-track::after { transform: translateX(16px); }
+  .switch input:focus-visible + .switch-track { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .cmp-controls { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+  .cmp-controls[hidden] { display: none; }
+  .cmp-controls label { font-size: 13px; font-weight: 600; color: var(--ink-sub); }
+  .cmp-controls .input-box { width: 96px; }
+  .scn-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .scn-cards[hidden] { display: none; }
+  .scn-card { min-width: 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
+  .scn-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; font-size: 13px; }
+  .scn-name { font-weight: 700; color: var(--ink); }
+  .scn-rate { color: var(--ink-sub); font-variant-numeric: tabular-nums; }
+  .scn-runway { margin-top: 6px; font-size: 22px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.25; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .scn-runway.lv-red { color: var(--danger-text); }
+  .scn-runway.lv-orange { color: var(--caution-text); }
+  .scn-runway.lv-green { color: var(--safe-text); }
+  .scn-when { margin-top: 2px; font-size: 13px; color: var(--ink-sub); }
+  .line-key { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 14px; font-size: 14px; color: var(--ink); }
+  .line-key[hidden] { display: none; }
+  .line-key li { display: flex; align-items: center; gap: 8px; }
+  .line-key:not([hidden]) + .chart-legend { margin-top: 10px; }
+  .ln { flex: none; }
+  .ln line { stroke-width: 2.5; }
+  .ln-cons line { stroke: var(--danger); stroke-width: 2; stroke-dasharray: 7 4; }
+  .ln-base line { stroke: var(--primary); }
+  .ln-opt line { stroke: var(--safe); stroke-width: 2; stroke-dasharray: 2 3; }
+  @media (max-width: 600px) {
+    .scn-cards { grid-template-columns: minmax(0, 1fr); }
+  }
   .chart-fallback { display: grid; place-items: center; height: 100%; color: var(--ink-sub); font-size: 14px; text-align: center; }
 
   @media (max-width: 760px) {
@@ -491,9 +542,22 @@
 
   <div class="wrap">
     <section class="panel chart-panel" aria-labelledby="chart-title">
-      <h2 id="chart-title">월별 현금 잔고</h2>
+      <div class="chart-head">
+        <h2 id="chart-title">월별 현금 잔고</h2>
+        <label class="switch" for="cmp-toggle">
+          <span>시나리오 비교</span>
+          <input id="cmp-toggle" type="checkbox" role="switch" aria-controls="cmp-controls scn-cards">
+          <span class="switch-track" aria-hidden="true"></span>
+        </label>
+      </div>
+      <div class="cmp-controls" id="cmp-controls" hidden>
+        <label for="cmp-gap">차이 폭(%p)</label>
+        <div class="input-box sm"><input id="cmp-gap" type="text" inputmode="decimal" autocomplete="off" value="5"></div>
+      </div>
       <p class="chart-note" id="chart-note"></p>
+      <div class="scn-cards" id="scn-cards" role="list" aria-label="시나리오별 결과" hidden></div>
       <div class="chart-box"><canvas id="balance-chart" role="img" aria-label="월별 현금 잔고 선 그래프"></canvas><div class="chart-tip" id="chart-tip" role="tooltip" hidden></div></div>
+      <ul class="line-key" id="line-key" aria-label="선 모양 설명" hidden></ul>
       <ol class="chart-legend" id="chart-legend" aria-label="그래프 번호 설명"></ol>
     </section>
   </div>
@@ -1106,17 +1170,21 @@
           x1: g.x1 - BAR_R - 2, x2: g.x2 + 2, y1: g.y - BAR_R - 2, y2: g.y + BAR_R + 2 });
       });
 
-      // 현금 소진: 소진 달 점(0원)에 빨간 마커
-      var runoutIndex = ch.$stopped && pts.length ? pts.length - 1 : null;
-      if (runoutIndex !== null) {
+      // 현금 소진: 선마다 소진 달 점(0원)에 빨간 마커 (비교 모드면 현금이 바닥나는 선 모두)
+      var runoutIndex = null; // 기본 선의 소진 달 위치
+      ch.data.datasets.forEach(function (ds, i) {
+        var dpts = ch.getDatasetMeta(i).data;
+        if (!chartStops[i] || !dpts.length) return;
+        var li = dpts.length - 1;
+        if (i === 0) runoutIndex = li;
         ctx.beginPath();
-        ctx.arc(pts[runoutIndex].x, y0, RUNOUT_R, 0, Math.PI * 2);
+        ctx.arc(dpts[li].x, y0, RUNOUT_R, 0, Math.PI * 2);
         ctx.fillStyle = C.danger;
         ctx.fill();
         ctx.strokeStyle = C.surface;
         ctx.lineWidth = 2;
         ctx.stroke();
-      }
+      });
 
       // 잔고 선 위 번호 마커 (같은 점이면 "2·3"처럼 합침)
       chartGroups.forEach(function (g) {
@@ -1180,6 +1248,135 @@
     document.addEventListener('pointerdown', function (e) { if (e.target !== canvas) hideMarkerTip(); });
   }
 
+  // ===== 시나리오 비교 =====
+  var cmp = {
+    toggle: document.getElementById('cmp-toggle'),
+    controls: document.getElementById('cmp-controls'),
+    gap: document.getElementById('cmp-gap'),
+    cards: document.getElementById('scn-cards'),
+    lineKey: document.getElementById('line-key')
+  };
+  // 월 매출 성장률만 다르게: 보수적 = 입력값 − 차이 폭 / 기본 = 입력값 / 낙관적 = 입력값 + 차이 폭
+  // 선 모양: 보수적 --danger 긴 점선 / 기본 --primary 실선 / 낙관적 --safe 짧은 점선
+  var SCENARIOS = [
+    { key: 'cons', name: '보수적', sign: -1, color: 'danger', dash: [10, 6], width: 2 },
+    { key: 'base', name: '기본', sign: 0, color: 'primary', dash: [], width: 2.5 },
+    { key: 'opt', name: '낙관적', sign: 1, color: 'safe', dash: [3, 4], width: 2 }
+  ];
+  var LINE_CLIP = { left: 6, top: 6, right: 6, bottom: 0 };
+
+  // 그래프 선별 정보 (0번 = 기본 선. 비교 모드에서 1번 = 보수적, 2번 = 낙관적)
+  var chartStops = [false]; // 선마다 현금 소진으로 끝났는지
+  var chartNames = ['기본'];
+  var chartCompare = false;
+  var TOOLTIP_RANK = { 1: 0, 0: 1, 2: 2 }; // 툴팁 순서: 보수적 → 기본 → 낙관적
+
+  function compareOn() { return !!cmp.toggle.checked; }
+  function readGap() {
+    var n = parseFloat(String(cmp.gap.value).replace(/[^0-9.]/g, ''));
+    return isNaN(n) ? 0 : Math.min(1000, n);
+  }
+
+  // 시나리오 세 개 계산 (지출 변화·투자는 똑같이 적용, 성장률만 다름)
+  function scenarioResults(cash, expense, revenue, g) {
+    var gap = readGap();
+    return SCENARIOS.map(function (s) {
+      var rate = Math.max(-99, Math.min(1000, Math.round((g + s.sign * gap) * 100) / 100));
+      var out = runwayOutcome(cash, expense, revenue, rate, true);
+      var runOut = out.kind === 'empty' ? 0 : out.kind === 'runout' ? runOutMonthOf(out.runway) : null;
+      return { s: s, rate: rate, out: out, runOutMonth: runOut, data: balanceSeries(cash, expense, revenue, rate, runOut) };
+    });
+  }
+
+  // 카드에 보여줄 런웨이와 현금 소진 월 / 흑자 전환 월 (결과 카드와 같은 판단)
+  function scenarioSummary(r, expense, revenue) {
+    var o = r.out;
+    if (o.kind === 'empty' || o.kind === 'runout') {
+      var runway = o.kind === 'empty' ? 0 : o.runway;
+      return {
+        level: levelOf(runway),
+        runway: runway > MAX_CELLS ? '36개월 이상' : runwayShown(runway) + '개월',
+        when: monthText(r.runOutMonth) + ' 현금 소진'
+      };
+    }
+    var burn = expenseAt(expense, 0) - revenue;
+    var beMonth = o.kind === 'survive' && o.sim.breakEven !== null && o.sim.breakEven > 1 && burn > 0
+      ? o.sim.breakEven - 1 : null;
+    return {
+      level: 'green',
+      runway: '36개월 이상',
+      when: beMonth !== null ? monthText(beMonth) + ' 흑자 전환'
+        : o.kind === 'safe' ? '현금이 줄지 않아요' : '현금이 바닥나지 않아요'
+    };
+  }
+
+  function lineSwatch(key) {
+    return '<svg class="ln ln-' + key + '" width="28" height="10" viewBox="0 0 28 10" aria-hidden="true">' +
+      '<line x1="1" y1="5" x2="27" y2="5"/></svg>';
+  }
+
+  function renderScenarioCards(results, expense, revenue) {
+    cmp.cards.innerHTML = results.map(function (r) {
+      var sm = scenarioSummary(r, expense, revenue);
+      return '<div class="scn-card" role="listitem">' +
+        '<div class="scn-head">' + lineSwatch(r.s.key) +
+          '<span class="scn-name">' + r.s.name + '</span>' +
+          '<span class="scn-rate">성장률 ' + rateText(r.rate) + '</span></div>' +
+        '<div class="scn-runway lv-' + sm.level + '">' + sm.runway + '</div>' +
+        '<div class="scn-when">' + sm.when + '</div>' +
+        '</div>';
+    }).join('');
+    cmp.lineKey.innerHTML = results.map(function (r) {
+      return '<li>' + lineSwatch(r.s.key) + '<span>' + r.s.name + ' · 성장률 ' + rateText(r.rate) + '</span></li>';
+    }).join('');
+  }
+
+  // 선마다 마지막 달에만 작은 점 (현금 소진으로 끝난 선은 빨간 마커, 기본 선의 이벤트 달은 번호 마커로 따로 그림)
+  function lastPointRadius(c) {
+    var lastIndex = c.dataset.data.length - 1;
+    if (c.dataIndex !== lastIndex || chartStops[c.datasetIndex]) return 0;
+    if (c.datasetIndex === 0 && groupAt(lastIndex)) return 0;
+    return 3.5;
+  }
+
+  // 기본 잔고 선. 비교 모드가 아니면 채우기 포함 (스위치를 끈 화면과 같은 설정)
+  function baseDataset(values, compare) {
+    return {
+      label: '잔고',
+      data: values,
+      borderColor: C.primary,
+      borderWidth: 2.5,
+      backgroundColor: C.fill,
+      fill: compare ? false : 'origin',
+      tension: 0, // 직선으로 연결
+      // 현금 소진 달은 0원 점에서 끝나므로 선이 0원 아래로 내려가지 않음
+      clip: LINE_CLIP,
+      pointRadius: lastPointRadius,
+      pointHoverRadius: 4,
+      pointBackgroundColor: C.primary,
+      pointBorderColor: C.primary,
+      order: 0 // 기본 선이 맨 위
+    };
+  }
+  function scenarioDataset(r, order) {
+    var color = C[r.s.color];
+    return {
+      label: r.s.name,
+      data: r.data.values,
+      borderColor: color,
+      borderWidth: r.s.width,
+      borderDash: r.s.dash,
+      fill: false,
+      tension: 0,
+      clip: LINE_CLIP,
+      pointRadius: lastPointRadius,
+      pointHoverRadius: 4,
+      pointBackgroundColor: color,
+      pointBorderColor: color,
+      order: order
+    };
+  }
+
   // runOutMonth: 결과 카드와 같은 현금 소진 달 (없으면 null)
   function updateChart(cash, expense, revenue, g, runOutMonth) {
     var box = document.querySelector('.chart-box');
@@ -1189,18 +1386,41 @@
       return;
     }
 
+    var compare = compareOn();
     var data = balanceSeries(cash, expense, revenue, g, runOutMonth);
-    var months = data.values.length - 1;
-    var last = data.values[months];
+    var last = data.values[data.values.length - 1];
+    var labels = data.labels;
+    var datasets;
 
-    // 그래프 제목 아래 결론 한 줄
+    // 그래프 제목 아래 결론 한 줄 (비교 모드에서도 기본 시나리오 기준)
     noteEl.textContent = data.stopped
       ? monthText(runOutMonth) + '에 현금이 바닥나요.'
       : data.values.length + '개월 뒤 잔고는 약 ' + won(last) + '이에요.';
 
+    cmp.controls.hidden = !compare;
+    cmp.cards.hidden = !compare;
+    cmp.lineKey.hidden = !compare;
+    if (compare) {
+      var results = scenarioResults(cash, expense, revenue, g);
+      renderScenarioCards(results, expense, revenue);
+      // 가로축은 가장 길게 그려지는 선 기준
+      results.forEach(function (r) { if (r.data.labels.length > labels.length) labels = r.data.labels; });
+      datasets = [baseDataset(data.values, true), scenarioDataset(results[0], 1), scenarioDataset(results[2], 2)];
+      chartStops = [data.stopped, results[0].data.stopped, results[2].data.stopped];
+      chartNames = ['기본', '보수적', '낙관적'];
+    } else {
+      cmp.cards.innerHTML = '';
+      cmp.lineKey.innerHTML = '';
+      datasets = [baseDataset(data.values, false)];
+      chartStops = [data.stopped];
+      chartNames = ['기본'];
+    }
+    chartCompare = compare;
+
+    // 지출 변화·투자·흑자 전환 마커와 번호 범례는 기본 시나리오 기준
     chartItems = buildChartItems(data, runOutMonth);
     chartGroups = buildGroups();
-    chartMonths = months;
+    chartMonths = labels.length - 1;
 
     // 범례 (번호 순서대로)
     var legendEl = document.getElementById('chart-legend');
@@ -1214,9 +1434,13 @@
 
     if (chart) {
       chart.$stopped = data.stopped;
-      applyChartLayout(chart.options, chart.width, months);
-      chart.data.labels = data.labels;
-      chart.data.datasets[0].data = data.values;
+      applyChartLayout(chart.options, chart.width, chartMonths);
+      chart.data.labels = labels;
+      if (!compare && chart.data.datasets.length === 1) {
+        chart.data.datasets[0].data = data.values; // 비교 모드를 쓰지 않을 때는 데이터만 바꿈
+      } else {
+        chart.data.datasets = datasets;
+      }
       chart.update();
       return;
     }
@@ -1235,14 +1459,23 @@
           bodyColor: C.surface,
           padding: 10,
           displayColors: false,
+          itemSort: function (a, b) { return TOOLTIP_RANK[a.datasetIndex] - TOOLTIP_RANK[b.datasetIndex]; },
           callbacks: {
             title: function (items) { return items.length ? items[0].label + ' 말' : ''; },
             label: function (c) {
-              if (c.chart.$stopped && c.dataIndex === c.dataset.data.length - 1) return '잔고 0원 · 이 달에 현금 소진';
-              return '잔고 ' + comma(c.raw) + '만원 (' + won(c.raw) + ')';
+              // 비교 모드에서는 어느 시나리오인지 이름을 앞에 붙임
+              var prefix = chartCompare ? chartNames[c.datasetIndex] + ' ' : '';
+              if (chartStops[c.datasetIndex] && c.dataIndex === c.dataset.data.length - 1) return prefix + '잔고 0원 · 이 달에 현금 소진';
+              return prefix + '잔고 ' + comma(c.raw) + '만원 (' + won(c.raw) + ')';
             },
             afterLabel: function (c) {
+              if (chartCompare) return [];
               return tooltipItemsAt(c.dataIndex).map(function (it) { return circled(it.n) + ' ' + it.text; });
+            },
+            // 비교 모드: 선 세 개의 잔고 아래에 이 달의 번호 항목을 한 번만 붙임
+            afterBody: function (items) {
+              if (!chartCompare || !items.length) return [];
+              return tooltipItemsAt(items[0].dataIndex).map(function (it) { return circled(it.n) + ' ' + it.text; });
             }
           }
         }
@@ -1260,33 +1493,11 @@
         }
       }
     };
-    applyChartLayout(options, box.clientWidth, months);
+    applyChartLayout(options, box.clientWidth, chartMonths);
 
     chart = new Chart(document.getElementById('balance-chart'), {
       type: 'line',
-      data: {
-        labels: data.labels,
-        datasets: [{
-          label: '잔고',
-          data: data.values,
-          borderColor: C.primary,
-          borderWidth: 2.5,
-          backgroundColor: C.fill,
-          fill: 'origin',
-          tension: 0, // 직선으로 연결
-          // 현금 소진 달은 0원 점에서 끝나므로 선이 0원 아래로 내려가지 않음
-          clip: { left: 6, top: 6, right: 6, bottom: 0 },
-          // 매달 점은 찍지 않고, 마지막 달에만 작은 점 (이벤트 달은 번호 마커, 현금 소진은 빨간 마커로 따로 그림)
-          pointRadius: function (c) {
-            var lastIndex = c.dataset.data.length - 1;
-            if (c.dataIndex !== lastIndex || c.chart.$stopped || groupAt(lastIndex)) return 0;
-            return 3.5;
-          },
-          pointHoverRadius: 4,
-          pointBackgroundColor: C.primary,
-          pointBorderColor: C.primary
-        }]
-      },
+      data: { labels: labels, datasets: datasets },
       plugins: [markerPlugin],
       options: options
     });
@@ -1766,6 +1977,17 @@
     calc();
   });
   els.growth.addEventListener('focus', function () { this.select(); });
+
+  // 시나리오 비교 스위치와 차이 폭 입력칸
+  cmp.toggle.addEventListener('change', calc);
+  cmp.gap.addEventListener('input', function () {
+    var v = cmp.gap.value.replace(/[^0-9.]/g, '');
+    var parts = v.split('.');
+    v = parts[0].slice(0, 3) + (parts.length > 1 ? '.' + parts.slice(1).join('').slice(0, 2) : '');
+    if (v !== cmp.gap.value) cmp.gap.value = v;
+    calc();
+  });
+  cmp.gap.addEventListener('focus', function () { this.select(); });
 
   document.getElementById('reset').addEventListener('click', function () {
     els.cash.value = comma(DEFAULTS.cash);
