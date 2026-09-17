@@ -191,7 +191,14 @@
 
   footer { text-align: center; font-size: 13px; color: var(--muted); padding: 10px 20px 40px; }
 
+  /* 잔고 그래프 */
+  .chart-panel { margin-top: 18px; }
+  .chart-box { position: relative; height: 340px; }
+  .chart-note { font-size: 13px; color: var(--muted); margin-top: 12px; min-height: 1em; }
+  .chart-fallback { display: grid; place-items: center; height: 100%; color: var(--muted); font-size: 14px; text-align: center; }
+
   @media (max-width: 760px) {
+    .chart-box { height: 260px; }
     header { padding: 32px 20px 84px; }
     .grid { grid-template-columns: 1fr; }
     .panel { padding: 22px 20px; }
@@ -261,10 +268,20 @@
     <section class="panel result" aria-live="polite" id="result"></section>
 
   </div>
+
+  <div class="wrap">
+    <section class="panel chart-panel" aria-labelledby="chart-title">
+      <h2 id="chart-title">월별 현금 잔고</h2>
+      <p class="sub">매달 초에 남아 있는 현금을 최대 36개월까지 보여줘요.</p>
+      <div class="chart-box"><canvas id="balance-chart" role="img" aria-label="월별 현금 잔고 선 그래프"></canvas></div>
+      <p class="chart-note" id="chart-note"></p>
+    </section>
+  </div>
 </main>
 
 <footer>계산 결과는 매달 지출이 같고 매출은 입력한 성장률대로 변한다고 가정한 추정치예요.</footer>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
   var DEFAULTS = { cash: 30000, expense: 2500, revenue: 800 };
   var MAX_CELLS = 36;
@@ -406,6 +423,105 @@
     return (Math.round(g * 100) / 100) + '%';
   }
 
+  // ===== 월별 잔고 그래프 =====
+  var CHART_MONTHS = 36;
+  var chart = null;
+
+  // k개월 뒤 월초 잔고 목록 (0 = 지금). 잔고가 0 이하가 되면 그 달까지만 담음
+  function balanceSeries(cash, expense, revenue, g) {
+    var labels = [], values = [];
+    var balance = cash, rev = revenue;
+    for (var k = 0; k <= CHART_MONTHS; k++) {
+      labels.push(monthText(k));
+      values.push(Math.round(balance));
+      if (balance <= 0 && (k > 0 || expense - rev > 0)) break;
+      balance -= expense - rev;
+      rev = rev * (1 + g / 100);
+    }
+    return { labels: labels, values: values };
+  }
+
+  function pointColor(c) { return c.raw <= 0 ? '#C8412E' : '#1D418C'; }
+
+  function updateChart(cash, expense, revenue, g) {
+    var box = document.querySelector('.chart-box');
+    var noteEl = document.getElementById('chart-note');
+    if (typeof Chart === 'undefined') {
+      box.innerHTML = '<div class="chart-fallback">그래프를 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해 주세요.</div>';
+      return;
+    }
+
+    var data = balanceSeries(cash, expense, revenue, g);
+    var months = data.values.length - 1;
+    var last = data.values[months];
+
+    if (last <= 0) {
+      noteEl.textContent = data.labels[months] + '에 현금이 0원 이하로 내려가서 그 뒤는 그리지 않았어요.';
+    } else {
+      noteEl.textContent = months + '개월 뒤인 ' + data.labels[months] + ' 잔고는 약 ' + won(last) + '이에요.';
+    }
+
+    if (chart) {
+      chart.data.labels = data.labels;
+      chart.data.datasets[0].data = data.values;
+      chart.update();
+      return;
+    }
+
+    chart = new Chart(document.getElementById('balance-chart'), {
+      type: 'line',
+      data: {
+        labels: data.labels,
+        datasets: [{
+          label: '잔고',
+          data: data.values,
+          borderColor: '#1D418C',
+          borderWidth: 2.5,
+          backgroundColor: 'rgba(255, 229, 153, 0.45)',
+          fill: 'origin',
+          tension: 0.25,
+          pointRadius: 2.5,
+          pointHoverRadius: 6,
+          pointBackgroundColor: pointColor,
+          pointBorderColor: pointColor
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? false : { duration: 300 },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#152F66',
+            titleColor: '#FFE599',
+            padding: 10,
+            displayColors: false,
+            callbacks: {
+              label: function (c) { return '잔고 ' + comma(c.raw) + '만원 (' + won(c.raw) + ')'; }
+            }
+          }
+        },
+        scales: {
+          x: {
+            title: { display: true, text: '년/월', color: '#5F6B80' },
+            grid: { display: false },
+            ticks: { color: '#5F6B80', autoSkip: true, maxTicksLimit: 7, maxRotation: 0 }
+          },
+          y: {
+            title: { display: true, text: '잔고 (만원)', color: '#5F6B80' },
+            ticks: { color: '#5F6B80', callback: function (v) { return comma(v); } },
+            grid: {
+              color: function (c) { return c.tick && c.tick.value === 0 ? '#C8412E' : '#E9EDF4'; },
+              lineWidth: function (c) { return c.tick && c.tick.value === 0 ? 1.5 : 1; }
+            }
+          }
+        }
+      }
+    });
+  }
+
   function calc() {
     var cash = readNumber(els.cash);
     var expense = readNumber(els.expense);
@@ -413,6 +529,7 @@
     var g = readRate(els.growth);
     var burn = expense - revenue;
     updateHints(cash, expense, revenue, g);
+    updateChart(cash, expense, revenue, g);
 
     var burnLabel = g === 0 ? '월 순소진액' : '이번 달 순소진액';
     var html = '<h2>계산 결과</h2>';
