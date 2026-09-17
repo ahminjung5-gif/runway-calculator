@@ -131,19 +131,16 @@
     font-variant-numeric: tabular-nums;
   }
   .runway .label { font-size: 22px; font-weight: 700; }
+  /* 경고 단계 색 (어두운 배경용 밝은 톤) */
+  .result { --lv-red: #FF8B7B; --lv-orange: #FFB057; --lv-green: #6ED69B; }
+  .runway.lv-red .num { color: var(--lv-red); }
+  .runway.lv-orange .num { color: var(--lv-orange); }
+  .runway.lv-green .num { color: var(--lv-green); }
   .zero-date { font-size: 17px; color: #DCE4F5; }
   .zero-date strong { color: var(--white); }
 
   /* 런웨이 막대 (0~36개월) */
   .rbar { margin: 26px 0 6px; }
-  .rbar-left {
-    font-size: clamp(22px, 5vw, 28px);
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    color: var(--white);
-    margin-bottom: 12px;
-    font-variant-numeric: tabular-nums;
-  }
   .rbar-area { position: relative; padding-top: 34px; }
   .rbar-tag {
     position: absolute; top: 0;
@@ -172,8 +169,12 @@
     margin-left: -1px;
     background: var(--butter);
   }
-  .rbar.warn .rbar-fill, .rbar.warn .rbar-pin, .rbar.warn .rbar-tag { background: #FF9C7A; }
-  .rbar.warn .rbar-tag { color: #5A1B0E; }
+  .rbar.lv-red .rbar-fill, .rbar.lv-red .rbar-pin, .rbar.lv-red .rbar-tag { background: var(--lv-red); }
+  .rbar.lv-orange .rbar-fill, .rbar.lv-orange .rbar-pin, .rbar.lv-orange .rbar-tag { background: var(--lv-orange); }
+  .rbar.lv-green .rbar-fill, .rbar.lv-green .rbar-pin, .rbar.lv-green .rbar-tag { background: var(--lv-green); }
+  .rbar.lv-red .rbar-tag { color: #5A1B0E; }
+  .rbar.lv-orange .rbar-tag { color: #4F2A00; }
+  .rbar.lv-green .rbar-tag { color: #0D3A21; }
   .rbar-ticks {
     position: relative;
     height: 18px;
@@ -193,38 +194,29 @@
     margin-top: 22px;
   }
   .stat { background: var(--navy); padding: 16px; }
+  .stats.one { grid-template-columns: 1fr; }
   .stat .k { font-size: 13px; color: #AFC0E4; }
   .stat .v { font-size: 20px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
 
-  .note {
-    margin-top: 18px;
-    border-radius: 12px;
-    padding: 14px 16px;
-    font-size: 15px;
-    background: var(--butter);
-    color: var(--navy-deep);
-    font-weight: 600;
-  }
-  /* 상황별 안내 */
+  /* 상황별 안내 (한 박스) */
   .status {
-    display: flex; align-items: center; gap: 10px;
+    display: flex; align-items: flex-start; gap: 10px;
     margin-top: 18px;
-    padding: 13px 16px;
+    padding: 14px 16px;
     border-radius: 12px;
-    font-size: 16px; font-weight: 700;
-    line-height: 1.4;
+    font-size: 15px; font-weight: 500;
+    line-height: 1.55;
   }
   .status::before {
     content: ""; flex: none;
     width: 10px; height: 10px; border-radius: 50%;
+    margin-top: 0.5em;
     background: currentColor;
   }
-  .status.red { background: #FFE1D8; color: #B3261E; }
-  .status.orange { background: #FFE8CC; color: #A9500A; }
-  .status.green { background: #DCF2E3; color: #1B7440; }
-  .status + .note { margin-top: 10px; }
-  .note.danger { background: #FFE1D8; color: #7A2414; }
-  .note.calm { background: rgba(255,255,255,.1); color: #E4EAF7; font-weight: 500; }
+  .status strong { font-weight: 700; }
+  .status.red { background: #FFE1D8; color: #9E2418; }
+  .status.orange { background: #FFE8CC; color: #8F4506; }
+  .status.green { background: #DCF2E3; color: #17613A; }
 
   .safe-big {
     font-size: clamp(34px, 7vw, 48px);
@@ -257,7 +249,7 @@
   <div class="wrap">
     <div class="brand"><span>R</span>런웨이 계산기</div>
     <h1>우리 회사 현금, 몇 달 버틸 수 있을까요?</h1>
-    <p>숫자 세 개만 넣으면 런웨이와 돈이 떨어지는 시점을 바로 알려드려요.</p>
+    <p>몇 가지 숫자만 넣으면 런웨이와 돈이 떨어지는 시점을 바로 알려드려요.</p>
   </div>
 </header>
 
@@ -448,16 +440,22 @@
     return balance;
   }
 
+  // 경고 단계: 6개월 미만 빨강, 12개월 미만 주황, 그 이상 초록
+  function levelOf(runway) {
+    if (runway < 6) return 'red';
+    if (runway < 12) return 'orange';
+    return 'green';
+  }
+
   // 0~36개월 가로 막대
   function runwayBar(runway, shown, endText) {
     var over = runway > MAX_CELLS;
     var pct = Math.max(0, Math.min(100, runway / MAX_CELLS * 100));
     var leftText = over ? '36개월 이상' : shown + '개월 남음';
 
-    var html = '<div class="rbar' + (runway < 6 ? ' warn' : '') + '">';
-    html += '<div class="rbar-left">' + leftText + '</div>';
+    var html = '<div class="rbar lv-' + levelOf(runway) + '">';
     html += '<div class="rbar-area">';
-    // 채워진 끝에 붙는 표시 (막대 밖으로 나가지 않게 위치 보정)
+    // 채워진 끝에 붙는 말풍선 (막대 밖으로 나가지 않게 위치 보정)
     html += '<div class="rbar-tag" style="left:' + pct + '%;transform:translateX(-' + pct + '%)">현금 소진 ' + endText + '</div>';
     html += '<div class="rbar-track" role="img" aria-label="36개월 중 ' + leftText + ', 현금 소진 ' + endText + '">';
     for (var t = 6; t < MAX_CELLS; t += 6) {
@@ -474,14 +472,28 @@
     return html;
   }
 
-  // 상황별 안내 문구
-  function statusBox(color, text) {
-    return '<div class="status ' + color + '" role="status">' + text + '</div>';
+  // 상황별 안내 박스: 굵은 첫 문장 + 이어지는 설명
+  function statusBox(color, lead, rest) {
+    return '<div class="status ' + color + '" role="status"><p><strong>' + lead + '</strong>' +
+      (rest ? ' ' + rest : '') + '</p></div>';
   }
   function runwayStatus(runway) {
-    if (runway < 6) return statusBox('red', '지금 바로 투자 유치나 비용 절감이 필요해요');
-    if (runway < 12) return statusBox('orange', '투자 준비는 ' + monthText(Math.floor(runway) - 6) + '까지 시작하세요');
-    return statusBox('green', '여유가 있어요');
+    var level = levelOf(runway);
+    var prep = monthText(Math.floor(runway) - 6); // 현금 소진 6개월 전
+    if (level === 'red') {
+      return statusBox('red', '지금 바로 투자 유치나 비용 절감이 필요해요.',
+        '남은 기간이 6개월도 되지 않아, 투자 유치에 걸리는 시간을 생각하면 이미 준비를 시작했어야 할 시점이에요.');
+    }
+    if (level === 'orange') {
+      return statusBox('orange', '투자 준비는 ' + prep + '까지 시작하세요.',
+        '남은 기간이 1년이 안 되는데, 투자 유치에는 보통 6개월 정도 걸리기 때문이에요.');
+    }
+    if (runway < 18) {
+      return statusBox('green', '여유가 있어요.',
+        '1년 이상 버틸 수 있으니, 투자 유치에 걸리는 6개월을 감안해 ' + prep + '까지 다음 투자 준비를 시작하면 돼요.');
+    }
+    return statusBox('green', '여유가 있어요.',
+      '18개월 이상 버틸 수 있어 성장에 투자할 여력이 충분해요. 다음 투자 준비는 ' + prep + '까지 시작하면 돼요.');
   }
 
   function rateText(g) {
@@ -497,17 +509,22 @@
     var labels = [], values = [];
     var balance = cash, rev = revenue;
     var breakEven = null;
+    var runOut = null; // 현금이 바닥나는 달 (결과 카드와 같은 기준)
     var wasBurning = expense - revenue > 0;
     for (var k = 0; k <= CHART_MONTHS; k++) {
       labels.push(monthText(k));
       values.push(Math.round(balance));
       // 적자였다가 성장으로 매출이 지출 이상이 된 첫 달
       if (breakEven === null && wasBurning && g > 0 && balance > 0 && expense - rev <= 0) breakEven = k;
-      if (balance <= 0 && (k > 0 || expense - rev > 0)) break;
+      if (balance <= 0 && (k > 0 || expense - rev > 0)) {
+        // 월초 잔고가 딱 0이면 그 달, 0 아래면 바로 전 달 중에 바닥난 것
+        runOut = (k === 0 || balance === 0) ? k : k - 1;
+        break;
+      }
       balance -= expense - rev;
       rev = rev * (1 + g / 100);
     }
-    return { labels: labels, values: values, breakEven: breakEven };
+    return { labels: labels, values: values, breakEven: breakEven, runOut: runOut };
   }
 
   var BREAK_EVEN_COLOR = '#1B7440';
@@ -565,8 +582,9 @@
     var months = data.values.length - 1;
     var last = data.values[months];
 
-    if (last <= 0) {
-      noteEl.textContent = data.labels[months] + '에 현금이 0원 이하로 내려가서 그 뒤는 그리지 않았어요.';
+    if (data.runOut !== null) {
+      noteEl.textContent = data.labels[data.runOut] + '에 현금이 바닥나서 ' +
+        (data.runOut < months ? data.labels[months] + ' 이후는' : '그 뒤는') + ' 그리지 않았어요.';
     } else {
       noteEl.textContent = months + '개월 뒤인 ' + data.labels[months] + ' 잔고는 약 ' + won(last) + '이에요.';
     }
@@ -671,8 +689,7 @@
       } else {
         safeNote = '매출과 지출이 딱 같아요. 지출이 조금만 늘어도 현금이 줄기 시작하니 살펴봐 주세요.';
       }
-      html += statusBox('green', '여유가 있어요');
-      html += '<div class="note">' + safeNote + '</div>';
+      html += statusBox('green', '여유가 있어요.', safeNote);
       els.result.innerHTML = html;
       return;
     }
@@ -680,15 +697,13 @@
     // 2) 보유 현금이 없는 경우
     if (cash <= 0) {
       html += '<p class="sub">보유 현금을 입력해 주세요.</p>';
-      html += '<div class="runway"><span class="num">0</span><span class="label">개월</span></div>';
+      html += '<div class="runway lv-red"><span class="num">0</span><span class="label">개월</span></div>';
       html += '<div class="stats">' +
         '<div class="stat"><div class="k">' + burnLabel + '</div><div class="v">' + won(Math.max(burn, 0)) + '</div></div>' +
         '<div class="stat"><div class="k">런웨이</div><div class="v">0개월</div></div>' +
         '</div>';
-      html += runwayStatus(0);
-      html += '<div class="note danger">' + (burn > 0
-        ? '지금은 매달 ' + won(burn) + '이 부족해요. '
-        : '') + '보유 현금을 넣으면 버틸 수 있는 기간을 계산해요.</div>';
+      html += statusBox('red', '지금 바로 투자 유치나 비용 절감이 필요해요.',
+        (burn > 0 ? '지금은 매달 ' + won(burn) + '이 부족해요. ' : '') + '보유 현금을 넣으면 버틸 수 있는 기간을 계산해요.');
       els.result.innerHTML = html;
       return;
     }
@@ -711,9 +726,9 @@
         '<div class="stat"><div class="k">' + burnLabel + '</div><div class="v">' + won(burn) + '</div></div>' +
         '<div class="stat"><div class="k">흑자 전환 예상</div><div class="v">' + monthText(sim.breakEven - 1) + '</div></div>' +
         '</div>';
-      html += statusBox('green', monthText(sim.breakEven - 1) + ' 흑자 전환 예상');
-      html += '<div class="note">흑자 전환 전까지 현금이 가장 적을 때 약 ' + won(sim.minBalance) +
-        '이 남아요. 성장률이 예상보다 낮으면 결과가 달라지니 0%일 때도 함께 확인해 보세요.</div>';
+      html += statusBox('green', monthText(sim.breakEven - 1) + ' 흑자 전환 예상이에요.',
+        '그 전까지 현금이 가장 적을 때도 약 ' + won(sim.minBalance) +
+        '이 남아요. 성장률이 예상보다 낮으면 결과가 달라지니 0%일 때도 함께 확인해 보세요.');
       els.result.innerHTML = html;
       return;
     }
@@ -722,36 +737,19 @@
     var shown = runway >= 100 ? comma(runway) : (Math.floor(runway * 10) / 10).toFixed(1).replace(/\.0$/, '');
     var endText = monthText(Math.floor(runway));
 
-    var note, noteClass;
-    if (runway < 6) {
-      noteClass = 'note danger';
-      note = '6개월도 남지 않았어요. 투자 유치나 비용 절감을 바로 시작하는 게 좋아요.';
-    } else if (runway < 12) {
-      noteClass = 'note';
-      note = '1년이 안 남았어요. 보통 투자 유치에 6개월 정도 걸리니 지금부터 준비하세요.';
-    } else if (runway < 18) {
-      noteClass = 'note calm';
-      note = '1년 이상 버틸 수 있어요. 다음 투자 시점을 미리 계획해 두면 좋아요.';
-    } else {
-      noteClass = 'note calm';
-      note = '18개월 이상 여유가 있어요. 성장에 투자할 여력이 충분한 편이에요.';
-    }
-
     var subText;
     if (g === 0) subText = '지금 속도로 현금을 쓰면';
     else if (g > 0) subText = '매출이 매달 ' + rateText(g) + '씩 늘어난다고 보면';
     else subText = '매출이 매달 ' + rateText(-g) + '씩 줄어든다고 보면';
 
     html += '<p class="sub">' + subText + '</p>';
-    html += '<div class="runway"><span class="num">' + shown + '</span><span class="label">개월</span></div>';
+    html += '<div class="runway lv-' + levelOf(runway) + '"><span class="num">' + shown + '</span><span class="label">개월</span></div>';
     html += '<p class="zero-date"><strong>' + endText + '</strong>쯤 현금이 바닥나요.</p>';
     html += runwayBar(runway, shown, endText);
-    html += '<div class="stats">' +
+    html += '<div class="stats one">' +
       '<div class="stat"><div class="k">' + burnLabel + '</div><div class="v">' + won(Math.max(burn, 0)) + '</div></div>' +
-      '<div class="stat"><div class="k">현금 소진 예상</div><div class="v">' + endText + '</div></div>' +
       '</div>';
     html += runwayStatus(runway);
-    html += '<div class="' + noteClass + '">' + note + '</div>';
 
     els.result.innerHTML = html;
   }
