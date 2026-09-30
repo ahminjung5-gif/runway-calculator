@@ -110,6 +110,22 @@
   }
   .input-box .unit { padding-right: 14px; color: var(--ink-sub); font-size: 15px; font-weight: 500; }
   .hint { font-size: 13px; color: var(--ink-sub); margin-top: 6px; min-height: 1em; }
+  /* 입력칸 오른쪽에서 단위를 % / 만원으로 바꾸는 칸 */
+  .unit-pick { position: relative; flex: none; display: flex; align-items: center; }
+  .unit-pick select {
+    appearance: none; -webkit-appearance: none;
+    border: 0; outline: 0; background: transparent;
+    font: inherit; font-size: 15px; font-weight: 500; color: var(--ink-sub);
+    padding: 13px 28px 13px 8px;
+    cursor: pointer;
+  }
+  .unit-pick::after {
+    content: ""; position: absolute; right: 13px; top: 50%;
+    width: 6px; height: 6px;
+    border-right: 2px solid var(--ink-sub); border-bottom: 2px solid var(--ink-sub);
+    transform: translateY(-70%) rotate(45deg);
+    pointer-events: none;
+  }
 
   .reset {
     margin-top: 22px;
@@ -442,6 +458,84 @@
   }
   .chart-fallback { display: grid; place-items: center; height: 100%; color: var(--ink-sub); font-size: 14px; text-align: center; }
 
+  /* ===== 월별 현금흐름 표 ===== */
+  .flow-panel { margin-top: 18px; }
+  .flow-head { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
+  .flow-titles { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .flow-unit { font-size: 13px; font-weight: 600; color: var(--ink-sub); }
+  .flow-more {
+    flex: none;
+    border: 1.5px solid var(--border); border-radius: 10px;
+    background: var(--surface); color: var(--primary);
+    font: inherit; font-size: 13px; font-weight: 700;
+    padding: 8px 13px; cursor: pointer;
+  }
+  .flow-more:hover { background: var(--bg); border-color: var(--primary); }
+  .flow-more:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .flow-more[hidden] { display: none; }
+  .flow-sub { font-size: 14px; color: var(--ink-sub); margin-top: 6px; }
+
+  /* 가로로 길면 이 상자 안에서만 좌우로 스크롤됨 (페이지는 안 밀림) */
+  .flow-scroll {
+    margin-top: 16px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .flow-scroll:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .flow-table {
+    border-collapse: separate; border-spacing: 0;
+    width: max-content; min-width: 100%;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .flow-table th, .flow-table td {
+    padding: 10px 12px;
+    white-space: nowrap;
+    text-align: right;
+    background: var(--surface);
+  }
+  /* 월 이름 줄 (26.09) */
+  .flow-table thead th {
+    font-size: 12px; font-weight: 700; color: var(--ink-sub);
+    border-bottom: 1px solid var(--border);
+  }
+  .flow-table thead th.is-runout { color: var(--danger-text); }
+  /* 항목 이름 칸: 좌우로 스크롤해도 왼쪽에 붙어 있음 */
+  .flow-item {
+    position: sticky; left: 0; z-index: 2;
+    text-align: left; font-weight: 600; color: var(--ink);
+    border-right: 1px solid var(--border);
+  }
+  .flow-table thead .flow-item { z-index: 3; }
+  /* 재무제표처럼: 지출 밑에 가로선(순현금흐름 = 위 두 줄의 합), 월말 잔고 위는 굵은 선 */
+  .flow-table .row-sum th, .flow-table .row-sum td { border-top: 1px solid var(--border); font-weight: 700; }
+  .flow-table .row-net th, .flow-table .row-net td { border-top: 1px solid var(--ink-sub); font-weight: 700; }
+  .flow-table .row-bal th, .flow-table .row-bal td { border-top: 2px solid var(--ink); font-weight: 700; color: var(--ink); padding-bottom: 12px; }
+  /* 숫자 색: 음수는 위험, 투자 유입은 안전 (글자라서 팔레트의 글자용 색을 씀) */
+  .flow-neg { color: var(--danger-text); }
+  .flow-pos { color: var(--safe-text); }
+  .flow-dash { color: var(--ink-sub); }
+
+  /* 표 아래 이벤트 칩 */
+  .flow-events { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .flow-events:empty { display: none; }
+  .flow-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 11px; border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .flow-chip .chip-when { font-weight: 700; }
+  .flow-chip.up { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger-text); }
+  .flow-chip.down, .flow-chip.invest { background: color-mix(in srgb, var(--safe) 14%, transparent); color: var(--safe-text); }
+  .flow-empty { font-size: 13px; color: var(--ink-sub); margin-top: 16px; }
+  .flow-empty[hidden] { display: none; }
+  @media (max-width: 760px) {
+    .flow-table th, .flow-table td { padding: 9px 10px; }
+  }
+
   @media (max-width: 760px) {
     .chart-box { height: calc(260px + var(--strip-h, 0px)); }
     header { padding: 32px 20px 84px; }
@@ -471,7 +565,7 @@
 
     <section class="panel" aria-labelledby="in-title">
       <h2 id="in-title">회사 숫자 입력</h2>
-      <p class="sub">모든 금액은 만원 단위예요.</p>
+      <p class="sub">금액은 만원 단위예요.</p>
 
       <!-- 기본 설정: 항상 보임 -->
       <div class="group" role="group" aria-labelledby="basic-title">
@@ -487,12 +581,27 @@
       </div>
 
       <div class="field">
-        <label for="expense">월 지출</label>
+        <label for="expense">월 고정비</label>
         <div class="input-box">
           <input id="expense" type="text" inputmode="numeric" autocomplete="off" value="2,500">
           <span class="unit">만원</span>
         </div>
         <div class="hint" id="expense-hint"></div>
+      </div>
+
+      <!-- 변동비: %로도, 금액으로도 받고 계산은 매출 대비 비율로 함 -->
+      <div class="field">
+        <label for="varcost">변동비</label>
+        <div class="input-box">
+          <input id="varcost" type="text" inputmode="decimal" autocomplete="off" value="" placeholder="0">
+          <span class="unit-pick">
+            <select id="varcost-unit" aria-label="변동비 단위">
+              <option value="pct" selected>%</option>
+              <option value="won">만원</option>
+            </select>
+          </span>
+        </div>
+        <div class="hint" id="varcost-hint">비워두면 매출이 늘어도 지출은 그대로라고 보고 계산해요.</div>
       </div>
 
       <div class="field">
@@ -532,7 +641,7 @@
           -->
           <div class="adv-section">
             <h4 class="adv-section-title" id="chg-title">지출 변화</h4>
-            <p class="adv-section-sub">채용이나 일회성 비용처럼 앞으로 지출이 바뀌는 일을 넣어요. 마이너스 금액은 비용 절감으로 계산해요.</p>
+            <p class="adv-section-sub">채용이나 일회성 비용처럼 앞으로 고정비가 바뀌는 일을 넣어요. 마이너스 금액은 비용 절감으로 계산해요.</p>
             <div class="chg-list" id="chg-list" role="list" aria-labelledby="chg-title"></div>
             <button class="chg-add" id="chg-add" type="button">+ 추가</button>
           </div>
@@ -574,10 +683,27 @@
       <ul class="line-key" id="line-key" aria-label="선 모양 설명" hidden></ul>
       <ol class="chart-legend" id="chart-legend" aria-label="그래프 번호 설명"></ol>
     </section>
+
+    <!-- 월별 현금흐름 표: 그래프와 같은 계산 결과를 월별로 펼쳐 보여줌 -->
+    <section class="panel flow-panel" aria-labelledby="flow-title">
+      <div class="flow-head">
+        <div class="flow-titles">
+          <h2 id="flow-title">월별 현금흐름</h2>
+          <span class="flow-unit">(단위: 만원)</span>
+        </div>
+        <button class="flow-more" id="flow-more" type="button" aria-expanded="false" aria-controls="flow-scroll" hidden>전체 36개월 보기</button>
+      </div>
+      <p class="flow-sub" id="flow-sub"></p>
+      <div class="flow-scroll" id="flow-scroll" tabindex="0" role="region" aria-labelledby="flow-title">
+        <table class="flow-table" id="flow-table"></table>
+      </div>
+      <ul class="flow-events" id="flow-events" aria-label="지출 변화와 투자 일정"></ul>
+      <p class="flow-empty" id="flow-empty" hidden>고급 설정에서 지출 변화나 투자를 넣으면 여기에 일정이 모여요.</p>
+    </section>
   </div>
 </main>
 
-<footer>계산 결과는 월 지출이 입력한 지출 변화대로만 바뀌고, 매출은 입력한 성장률대로 변하며, 투자금은 입력한 달에 들어온다고 가정한 추정치예요.</footer>
+<footer>계산 결과는 고정비가 입력한 지출 변화대로만 바뀌고, 변동비는 매출에 비례해 늘며, 매출은 입력한 성장률대로 변하고, 투자금은 입력한 달에 들어온다고 가정한 추정치예요.</footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
@@ -590,6 +716,8 @@
     expense: document.getElementById('expense'),
     revenue: document.getElementById('revenue'),
     growth: document.getElementById('growth'),
+    varcost: document.getElementById('varcost'),
+    varunit: document.getElementById('varcost-unit'),
     result: document.getElementById('result')
   };
 
@@ -597,6 +725,29 @@
   function readNumber(input) {
     var n = parseInt(String(input.value).replace(/[^0-9]/g, ''), 10);
     return isNaN(n) ? 0 : n;
+  }
+
+  // 변동비 읽기 → 언제나 '매출 대비 %'로 돌려줌
+  // 단위가 만원이면 지금 매출로 나눠서 비율로 바꿈 (매출이 0이면 비율을 낼 수 없어 0)
+  function readVarRate(revenue) {
+    var raw = String(els.varcost.value).replace(/[^0-9.]/g, '');
+    if (raw === '') return 0;
+    var n = parseFloat(raw);
+    if (isNaN(n)) return 0;
+    if (els.varunit.value === 'won') {
+      if (revenue <= 0) return 0;
+      n = n / revenue * 100;
+    }
+    return Math.max(0, Math.min(500, n));
+  }
+
+  // 변동비 입력칸: 단위가 만원이면 콤마, %면 소수점 둘째 자리까지
+  function formatVarInput(input) {
+    if (els.varunit.value === 'won') { formatInput(input); return; }
+    var v = input.value.replace(/[^0-9.]/g, '');
+    var parts = v.split('.');
+    v = parts[0].slice(0, 3) + (parts.length > 1 ? '.' + parts.slice(1).join('').slice(0, 2) : '');
+    if (v !== input.value) input.value = v;
   }
 
   // 성장률 읽기 (비어 있으면 0)
@@ -628,7 +779,7 @@
     return c.start;
   }
 
-  // k개월 뒤의 월 지출
+  // k개월 뒤의 월 고정비 (매출과 상관없이 나가는 돈. 지출 변화는 모두 여기에 더해짐)
   // includeOnce가 false면 '한 번만' 항목은 빼고 계산 (흑자 전환 판단용: 일회성 지출로 흑자/적자를 판단하지 않음)
   function expenseAt(expense, k, includeOnce) {
     var e = expense;
@@ -638,6 +789,22 @@
       if (changeActive(c, k)) e += c.amount;
     }
     return Math.max(0, e);
+  }
+
+  // ===== 변동비 =====
+  // 매출에 비례해서 나가는 돈. 계산할 때마다 입력칸에서 읽어 채움 (%)
+  var varRate = 0;
+
+  // 매출에서 변동비를 빼고 남는 비율 (공헌이익률). 1이면 매출이 전부 남고, 0 이하면 팔수록 손해
+  function marginRate() { return 1 - varRate / 100; }
+
+  // 매출 rev인 달의 변동비
+  function varCostAt(rev) { return rev * varRate / 100; }
+
+  // k개월 차의 순소진액 = 고정비 + 변동비 − 매출
+  // 지출·매출이 들어가는 모든 계산은 이 함수 하나만 씁니다 (그래프·표·결과 카드가 같은 값을 쓰도록)
+  function burnAt(expense, k, rev, includeOnce) {
+    return expenseAt(expense, k, includeOnce) - rev * marginRate();
   }
 
   // ===== 투자 유치 =====
@@ -728,10 +895,36 @@
     });
   }
 
+  // 변동비 안내: 비율은 금액으로, 금액은 비율로 되돌려서 보여줌
+  function updateVarHint(expense, revenue) {
+    var h = document.getElementById('varcost-hint');
+    var typed = String(els.varcost.value).replace(/[^0-9.]/g, '') !== '';
+    if (typed && els.varunit.value === 'won' && revenue <= 0) {
+      h.textContent = '월 매출을 넣으면 매출 대비 비율로 바꿔서 계산해요.';
+      return;
+    }
+    if (!typed || varRate === 0) {
+      h.textContent = '비워두면 매출이 늘어도 지출은 그대로라고 보고 계산해요.';
+      return;
+    }
+    var parts = ['매출의 ' + rateText(varRate) + '인 ', { amt: won(varCostAt(revenue)) }, '이 이번 달 변동비예요.'];
+    var m = marginRate();
+    var fixed0 = expenseAt(expense, 0);
+    if (m > 0 && fixed0 > 0) {
+      parts.push(' 월 매출이 ');
+      parts.push({ amt: won(fixed0 / m) });
+      parts.push(' 이상이면 흑자예요.');
+    } else if (m <= 0) {
+      parts.push(' 매출이 늘수록 손해가 커지는 구조예요.');
+    }
+    setHint(h, parts);
+  }
+
   function updateHints(cash, expense, revenue, g) {
     setHint(document.getElementById('cash-hint'), cash ? [{ amt: won(cash) }] : []);
     setHint(document.getElementById('expense-hint'), expense ? [{ amt: won(expense) }] : []);
     setHint(document.getElementById('revenue-hint'), revenue ? [{ amt: won(revenue) }] : []);
+    updateVarHint(expense, revenue);
     var gh = document.getElementById('growth-hint');
     if (g === 0) {
       gh.textContent = '비워두면 매출이 그대로라고 보고 계산해요.';
@@ -756,8 +949,8 @@
       // 지난달 말에 잔고가 딱 0이 된 경우: 그 달에 바닥난 것으로 봄
       if (k > 0 && balance <= 0) return { runway: k, minBalance: 0, breakEven: null };
 
-      var burnM = expenseAt(expense, k) - rev;
-      var burnS = expenseAt(expense, k, false) - rev; // 일회성 지출 제외
+      var burnM = burnAt(expense, k, rev);
+      var burnS = burnAt(expense, k, rev, false); // 일회성 지출 제외
       if (burnS <= 0 && breakEven === null) breakEven = k + 1;
       if (burnS > 0) breakEven = null; // 다시 적자가 되면 흑자 전환 시점을 다시 찾음
       if (burnM > 0 && balance - burnM < 0) {
@@ -778,7 +971,7 @@
     var balance = cash, rev = revenue;
     for (var m = 0; m < months; m++) {
       balance += investAt(m);
-      balance -= expenseAt(expense, m) - rev;
+      balance -= burnAt(expense, m, rev);
       rev = rev * (1 + g / 100);
     }
     return balance;
@@ -791,7 +984,8 @@
     var withInvest = useInvest && investments.length > 0;
     if (cash + (useInvest ? investAt(0) : 0) <= 0) return { kind: 'empty', runway: 0 };
     if (g === 0 && expenseChanges.length === 0 && !withInvest) {
-      return { kind: 'runout', runway: cash / (expense - revenue) }; // 기존과 똑같은 계산
+      // 매달 순소진액이 똑같은 경우: 나눗셈 한 번으로 끝남
+      return { kind: 'runout', runway: cash / burnAt(expense, 0, revenue) };
     }
     var sim = simulate(cash, expense, revenue, g, useInvest);
     if (sim.runway !== null) return { kind: 'runout', runway: sim.runway, sim: sim };
@@ -809,7 +1003,7 @@
     if (g < 0) return false;
     var rev = revenue;
     for (var k = 0; k <= lastChangeMonth; k++) {
-      if (expenseAt(expense, k) - rev > 0) return false;
+      if (burnAt(expense, k, rev) > 0) return false;
       rev = rev * (1 + g / 100);
     }
     return true;
@@ -921,8 +1115,11 @@
   // 규칙: k번째 점 = k개월 차에 들어온 투자와 나간 지출이 모두 반영된 그 달 말 잔고
   // 그래서 지출 변화, 투자, 흑자 전환, 현금 소진 모두 입력 문장·범례에 적힌 달의 점에 표시됨
   // runOutMonth는 결과 카드가 계산한 현금 소진 달. 그래프는 그 달 점에서 0원으로 끝남
+  // rows: 월별 현금흐름 표가 쓰는 항목별 값 (그래프와 같은 계산에서 그대로 뽑은 값)
+  //   { month, revenue 매출, expense 지출, net 순현금흐름, invest 투자 유입, balance 월말 잔고 }
+  //   잔고 = 지난달 잔고 + 순현금흐름 + 투자 유입 이라서 표의 세로 계산이 그대로 맞아떨어짐
   function balanceSeries(cash, expense, revenue, g, runOutMonth) {
-    var labels = [], values = [];
+    var labels = [], values = [], rows = [];
     var balance = cash, rev = revenue;
     var breakEven = null;
     var stopped = false;
@@ -930,9 +1127,13 @@
     for (var k = 0; k < CHART_MONTHS; k++) {
       labels.push(monthText(k));
       // 현금이 바닥난 뒤에 들어오는 투자는 반영하지 않음
-      if (runOutMonth === null || k <= runOutMonth) balance += investAt(k);
-      var burnK = expenseAt(expense, k) - rev;
-      var burnS = expenseAt(expense, k, false) - rev; // 일회성 지출 제외
+      var invK = (runOutMonth === null || k <= runOutMonth) ? investAt(k) : 0;
+      balance += invK;
+      var revK = rev;
+      var fixK = expenseAt(expense, k);   // 고정비
+      var varK = varCostAt(rev);          // 변동비 (매출에 비례)
+      var burnK = burnAt(expense, k, rev);
+      var burnS = burnAt(expense, k, rev, false); // 일회성 지출 제외
       balance -= burnK;
       // 적자였다가 매출 성장이나 비용 절감으로 매출이 지출 이상이 된 달
       if (prevBurning === true && burnS <= 0 && balance > 0) breakEven = k;
@@ -941,13 +1142,15 @@
       if (runOutMonth !== null && k === runOutMonth) {
         // 현금 소진 달: 그 달 말 잔고는 0원 이하 → 그래프는 이 점에서 0원에 닿고 끝남
         values.push(0);
+        rows.push({ month: k, revenue: revK, fixed: fixK, variable: varK, expense: fixK + varK, net: -burnK, invest: invK, balance: 0, runout: true });
         stopped = true;
         break;
       }
       values.push(Math.round(balance));
+      rows.push({ month: k, revenue: revK, fixed: fixK, variable: varK, expense: fixK + varK, net: -burnK, invest: invK, balance: balance, runout: false });
       rev = rev * (1 + g / 100);
     }
-    return { labels: labels, values: values, breakEven: breakEven, stopped: stopped };
+    return { labels: labels, values: values, rows: rows, breakEven: breakEven, stopped: stopped };
   }
 
   // 그래프 색도 :root의 CSS 변수에서 읽어서 화면과 같은 규칙을 씀
@@ -1311,7 +1514,7 @@
         when: monthText(r.runOutMonth) + ' 현금 소진'
       };
     }
-    var burn = expenseAt(expense, 0) - revenue;
+    var burn = burnAt(expense, 0, revenue);
     var beMonth = o.kind === 'survive' && o.sim.breakEven !== null && o.sim.breakEven > 1 && burn > 0
       ? o.sim.breakEven - 1 : null;
     return {
@@ -1520,11 +1723,142 @@
     bindMarkerTips(chart.canvas);
   }
 
+  // ===== 월별 현금흐름 표 =====
+  // 표의 숫자는 그래프·결과 카드와 같은 balanceSeries()의 계산 결과만 씁니다. (따로 계산하지 않음)
+  var FLOW_PREVIEW = 12;  // 처음에 보여줄 개월 수
+  var flowExpanded = false;
+  var flowArgs = null;    // 펼치기 버튼을 눌렀을 때 같은 값으로 다시 그리려고 보관
+
+  var flow = {
+    table: document.getElementById('flow-table'),
+    more: document.getElementById('flow-more'),
+    sub: document.getElementById('flow-sub'),
+    events: document.getElementById('flow-events'),
+    empty: document.getElementById('flow-empty')
+  };
+
+  // 오늘로부터 n개월 뒤를 "26.09" 형식으로
+  function monthShort(offset) {
+    var now = new Date();
+    var d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    return String(d.getFullYear()).slice(2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2);
+  }
+
+  // 표에 들어갈 줄 (위에서부터 순서대로)
+  // 지출은 마이너스로 적어서, 가로선 아래 순현금흐름이 위 줄들을 더한 값이 되게 함
+  // 변동비를 넣었을 때만 고정비/변동비/지출 계로 나눠 보여줌 (0이면 줄만 늘고 알 수 있는 게 없어서)
+  function flowRows() {
+    var list = [{ cls: 'row-rev', name: '매출', dashZero: true, value: function (r) { return r.revenue; } }];
+    if (varRate > 0) {
+      list.push({ cls: 'row-fix', name: '고정비', dashZero: true, value: function (r) { return -r.fixed; } });
+      list.push({ cls: 'row-var', name: '변동비', dashZero: true, value: function (r) { return -r.variable; } });
+      list.push({ cls: 'row-sum', name: '지출 계', value: function (r) { return -r.expense; } });
+    } else {
+      list.push({ cls: 'row-exp', name: '지출', dashZero: true, value: function (r) { return -r.expense; } });
+    }
+    list.push({ cls: 'row-net', name: '순현금흐름', value: function (r) { return r.net; } });
+    list.push({ cls: 'row-inv', name: '투자 유입', dashZero: true, positive: true, plus: true, value: function (r) { return r.invest; } });
+    list.push({ cls: 'row-bal', name: '월말 잔고', value: function (r) { return r.balance; } });
+    return list;
+  }
+
+  // 표 한 칸: 값이 없으면 —, 음수는 위험 색, 투자 유입은 안전 색
+  function flowCell(value, def) {
+    var n = Math.round(value);
+    if (def.dashZero && n === 0) return '<td class="flow-dash">—</td>';
+    var cls = n < 0 ? 'flow-neg' : (def.positive && n > 0 ? 'flow-pos' : '');
+    var text = (def.plus && n > 0 ? '+' : '') + comma(n);
+    return '<td' + (cls ? ' class="' + cls + '"' : '') + '>' + text + '</td>';
+  }
+
+  // 표 아래 이벤트 칩 (그래프 범례와 같은 기준으로 고름: 그려진 기간 안 + 현금 소진 전)
+  function flowEvents(monthsMax, runOutMonth) {
+    var list = [];
+    function inRange(m) { return m <= monthsMax && (runOutMonth === null || m <= runOutMonth); }
+    expenseChanges.forEach(function (c) {
+      if (!inRange(c.start)) return;
+      var when, what;
+      if (c.type === 'limited') {
+        when = c.duration === 1 ? monthShort(c.start) : monthShort(c.start) + '~' + monthShort(c.start + c.duration - 1);
+        what = c.name + ' 월 ' + signedWon(c.amount);
+      } else if (c.type === 'once') {
+        when = monthShort(c.start);
+        what = c.name + ' ' + signedWon(c.amount);
+      } else {
+        when = monthShort(c.start) + '~';
+        what = c.name + ' 매달 ' + signedWon(c.amount);
+      }
+      list.push({ kind: c.amount > 0 ? 'up' : 'down', month: c.start, when: when, what: what });
+    });
+    investments.forEach(function (v) {
+      if (!inRange(v.month)) return;
+      list.push({ kind: 'invest', month: v.month, when: monthShort(v.month), what: v.name + ' ' + signedWon(v.amount) });
+    });
+    return list.sort(function (a, b) { return a.month - b.month; });
+  }
+
+  function renderFlowEvents(list) {
+    flow.events.innerHTML = '';
+    list.forEach(function (ev) {
+      var li = document.createElement('li');
+      li.className = 'flow-chip ' + ev.kind;
+      var when = document.createElement('span');
+      when.className = 'chip-when';
+      when.textContent = ev.when;
+      var what = document.createElement('span');
+      what.textContent = ev.what; // 이름은 사용자가 입력한 글자라 textContent로 넣음
+      li.appendChild(when);
+      li.appendChild(what);
+      flow.events.appendChild(li);
+    });
+    flow.empty.hidden = list.length > 0;
+  }
+
+  // runOutMonth는 결과 카드가 계산한 현금 소진 달 (그래프에 넘기는 값과 같음)
+  function renderFlow(cash, expense, revenue, g, runOutMonth) {
+    flowArgs = [cash, expense, revenue, g, runOutMonth];
+    var data = balanceSeries(cash, expense, revenue, g, runOutMonth);
+    var rows = data.rows;
+    var total = rows.length;
+    if (!total) { flow.table.innerHTML = ''; flow.more.hidden = true; renderFlowEvents([]); return; }
+    var expandable = total > FLOW_PREVIEW;
+    var shown = (expandable && !flowExpanded) ? rows.slice(0, FLOW_PREVIEW) : rows;
+
+    var html = '<thead><tr><th class="flow-item" scope="col">항목</th>';
+    shown.forEach(function (r) {
+      html += '<th scope="col"' + (r.runout ? ' class="is-runout"' : '') + '>' + monthShort(r.month) + '</th>';
+    });
+    html += '</tr></thead><tbody>';
+    flowRows().forEach(function (def) {
+      html += '<tr class="' + def.cls + '"><th class="flow-item" scope="row">' + def.name + '</th>';
+      shown.forEach(function (r) { html += flowCell(def.value(r), def); });
+      html += '</tr>';
+    });
+    flow.table.innerHTML = html + '</tbody>';
+
+    flow.more.hidden = !expandable;
+    flow.more.textContent = flowExpanded ? FLOW_PREVIEW + '개월만 보기' : '전체 ' + total + '개월 보기';
+    flow.more.setAttribute('aria-expanded', flowExpanded ? 'true' : 'false');
+
+    var sub = '위 그래프·결과 카드와 같은 계산 결과예요.';
+    if (compareOn()) sub += ' 시나리오 비교를 켜도 표는 기본 시나리오 기준이에요.';
+    if (data.stopped) sub += ' 현금이 바닥나는 ' + monthShort(rows[total - 1].month) + '까지만 나와요.';
+    flow.sub.textContent = sub;
+
+    renderFlowEvents(flowEvents(total - 1, runOutMonth));
+  }
+
+  flow.more.addEventListener('click', function () {
+    flowExpanded = !flowExpanded;
+    if (flowArgs) renderFlow.apply(null, flowArgs);
+  });
+
   function calc() {
     var cash = readNumber(els.cash);
     var expense = readNumber(els.expense);
     var revenue = readNumber(els.revenue);
     var g = readRate(els.growth);
+    varRate = readVarRate(revenue);
     expenseChanges = readChanges();
     lastChangeMonth = expenseChanges.reduce(function (mx, c) { return Math.max(mx, changeSettleMonth(c)); }, 0);
     investments = readInvestments();
@@ -1532,13 +1866,14 @@
 
     var runOutMonth = renderResult(cash, expense, revenue, g);
     updateChart(cash, expense, revenue, g, runOutMonth);
+    renderFlow(cash, expense, revenue, g, runOutMonth);
   }
 
   // 결과 카드를 그리고, 현금 소진 달(없으면 null)을 돌려줌. 그래프도 이 값을 그대로 씀
   function renderResult(cash, expense, revenue, g) {
     var hasChanges = expenseChanges.length > 0;
     var hasInvest = investments.length > 0;
-    var burn = expenseAt(expense, 0) - revenue;
+    var burn = burnAt(expense, 0, revenue);
     var out = runwayOutcome(cash, expense, revenue, g, true);
     var base = hasInvest ? runwayOutcome(cash, expense, revenue, g, false) : out;
     var compare = hasInvest ? compareBlock(base, out) : '';
@@ -1647,6 +1982,13 @@
         green ? ' 다음 투자 준비는 ' + monthText(runOutMonth - 6) + '까지 시작하세요.' : '');
       html += warn;
       if (!warn || !green) html += runwayStatus(runway);
+    }
+
+    // 변동비가 매출보다 크면 매출이 늘수록 손해 → 성장률로는 흑자가 되지 않음
+    if (varRate >= 100 && revenue > 0) {
+      html += statusBox('red', '매출이 늘수록 손해가 커지는 구조예요.',
+        '변동비가 매출의 ' + rateText(varRate) + '라서, 매출이 100만원 늘면 변동비가 약 ' + comma(varRate) +
+        '만원 늘어요. 매출을 키우는 것만으로는 흑자가 되지 않으니 원가율부터 낮춰야 해요.');
     }
 
     els.result.innerHTML = html;
@@ -1993,6 +2335,24 @@
   });
   els.growth.addEventListener('focus', function () { this.select(); });
 
+  els.varcost.addEventListener('input', function () {
+    formatVarInput(els.varcost);
+    calc();
+  });
+  els.varcost.addEventListener('focus', function () { this.select(); });
+
+  // 단위를 바꾸면 값도 같이 환산해줌 (30% ↔ 240만원)
+  els.varunit.addEventListener('change', function () {
+    var revenue = readNumber(els.revenue);
+    var cur = parseFloat(String(els.varcost.value).replace(/[^0-9.]/g, ''));
+    if (!isNaN(cur) && revenue > 0) {
+      els.varcost.value = els.varunit.value === 'won'
+        ? comma(revenue * cur / 100)                      // % → 만원
+        : String(Math.round(cur / revenue * 1000) / 10);  // 만원 → %
+    }
+    calc();
+  });
+
   // 시나리오 비교 스위치와 차이 폭 입력칸
   cmp.toggle.addEventListener('change', calc);
   cmp.gap.addEventListener('input', function () {
@@ -2009,6 +2369,8 @@
     els.expense.value = comma(DEFAULTS.expense);
     els.revenue.value = comma(DEFAULTS.revenue);
     els.growth.value = '';
+    els.varcost.value = '';
+    els.varunit.value = 'pct';
     clearAdvanced();
     calc();
   });
